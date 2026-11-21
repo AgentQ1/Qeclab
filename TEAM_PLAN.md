@@ -1,9 +1,19 @@
 # Team plan: who does what, step by step
 
-Five people. Four of you lend a laptop, and one runs the analysis and the pitch. You don't need to understand the code to run it.
+Five computers, one job each. p = 0.003 is the slowest job (rare failures need many shots), so it gets two computers. Agastya runs the analysis on any computer; it takes seconds.
 
-| Person | Laptop job | Also owns |
+| Computer | Job | Person also owns |
 |---|---|---|
+| **1** | p = 0.003, X basis | README |
+| **2** | p = 0.003, Z basis | Plots for the slides |
+| **3** | p = 0.004, X and Z, plus BP-OSD and the setup check (step 4) | Checking numbers make sense |
+| **4** | p = 0.005, X and Z | Backup: reruns anything that crashed |
+| **5** | Erasure experiment, X and Z | The erasure slide |
+| **Agastya** | `analyze.py` on all results; go/no-go calls | Mentors, slides, pitch |
+
+If a computer can't install relay-BP (step 2), give its job to the next-fastest computer.
+
+---|---|---|
 | **A** (fastest laptop) | p = 0.004 sweep + BP-OSD sanity check | Checking the setup is correct (step 4) |
 | **B** | p = 0.003 sweep | README for the repo |
 | **C** | p = 0.005 sweep | Plots in the slides |
@@ -38,7 +48,7 @@ python run_job.py --basis X --p 0.004 --shots 50 --seed 2 --decoders bp relay --
 ```
 It should print one line like `results/check.npz [20 s] bp: fails .. relay: fails ..`. Then delete `results/check.npz`. **Post "ready" in the group chat.**
 
-## Step 4. Person A confirms the setup is correct (15 min)
+## Step 4. Computer 3 confirms the setup is correct (15 min)
 ```bash
 python baseline.py --p 0.004 --shots 1000
 ```
@@ -46,31 +56,47 @@ python baseline.py --p 0.004 --shots 1000
 - BP-OSD should fail about 5 in 100, which is roughly 50 failures.
 - If these are far off, stop and tell Agastya.
 
-## Step 5. Start your long job (A–D)
-Open **two terminals** and run the X commands in one and the Z commands in the other, so both run at once.
-- **Mac:** put `caffeinate -i` before each command so the laptop doesn't sleep.
-- Keep the laptop plugged in and the lid open.
+## Step 5. Start your long job (computers 1-5)
+Keep the computer plugged in with the lid open. On a Mac, put `caffeinate -i` in front of every command. Where it says "two terminals", run both at once.
 
-**A (p = 0.004):**
+**Computer 1 (p = 0.003, X):**
+```bash
+python run_job.py --basis X --p 0.003 --shots 5000 --seed 2 --decoders bp relay --out results/test_X_p0.003.npz
+python run_job.py --basis X --p 0.003 --shots 5000 --seed 1 --decoders bp --out results/train_X_p0.003.npz
+```
+**Computer 2 (p = 0.003, Z):** the same two commands with `--basis Z` and `_Z_` in both file names.
+
+**Computer 3 (p = 0.004), two terminals:**
 ```bash
 # terminal 1
 python run_job.py --basis X --p 0.004 --shots 2000 --seed 2 --decoders bp relay bposd --out results/test_X_p0.004.npz
 python run_job.py --basis X --p 0.004 --shots 5000 --seed 1 --decoders bp --out results/train_X_p0.004.npz
-# terminal 2: the same two commands with --basis Z and _Z_ in the file names
+# terminal 2
+python run_job.py --basis Z --p 0.004 --shots 2000 --seed 2 --decoders bp relay bposd --out results/test_Z_p0.004.npz
+python run_job.py --basis Z --p 0.004 --shots 5000 --seed 1 --decoders bp --out results/train_Z_p0.004.npz
 ```
-**B (p = 0.003):** same as A but with `--p 0.003`, `p0.003` in the file names, `--shots 5000` on the test job, and `--decoders bp relay` (no `bposd`).
-**C (p = 0.005):** same as A but with `--p 0.005`, `p0.005` in the file names, and `--decoders bp relay` (no `bposd`).
-**D (erasure):**
+**Computer 4 (p = 0.005), two terminals:**
+```bash
+# terminal 1
+python run_job.py --basis X --p 0.005 --shots 2000 --seed 2 --decoders bp relay --out results/test_X_p0.005.npz
+python run_job.py --basis X --p 0.005 --shots 5000 --seed 1 --decoders bp --out results/train_X_p0.005.npz
+# terminal 2
+python run_job.py --basis Z --p 0.005 --shots 2000 --seed 2 --decoders bp relay --out results/test_Z_p0.005.npz
+python run_job.py --basis Z --p 0.005 --shots 5000 --seed 1 --decoders bp --out results/train_Z_p0.005.npz
+```
+**Computer 5 (erasure), two terminals:**
 ```bash
 # terminal 1
 for f in 0.25 0.5 0.75; do python run_job.py --basis X --p 0.004 --f $f --shots 1000 --seed 2 --decoders bposd bposd_flags --out results/erase_X_p0.004_f$f.npz; done
-# terminal 2: the same with --basis Z and erase_Z_ in the file name
+# terminal 2
+for f in 0.25 0.5 0.75; do python run_job.py --basis Z --p 0.004 --f $f --shots 1000 --seed 2 --decoders bposd bposd_flags --out results/erase_Z_p0.004_f$f.npz; done
 ```
 
 **Rules:**
 - **Never change `--seed`:** 2 for test, 1 for train.
-- **Copy file names exactly,** because `analyze.py` finds files by name.
-- When a command finishes, **paste its one summary line** in the group chat.
+- **Copy file names exactly.** `analyze.py` finds files by name.
+- When a command finishes, **paste its summary line** in the group chat.
+- If a terminal shows an error, paste the last 5 lines in the chat. Don't try to fix it alone.
 
 ## Step 6. Hand over results (A–D)
 Upload your `results/*.npz` files to the shared Drive folder, or push them:
