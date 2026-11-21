@@ -160,7 +160,7 @@ def test_better_prefers_converged_then_lighter():
 
 
 def test_threshold_controls_the_path(problem, shots):
-    never, always = AegisDecoder(problem, constant_model(0.01), 0.5), AegisDecoder(problem, constant_model(0.9), 0.5)
+    never, always = AegisDecoder(problem, constant_model(0.01), 0.5, tier1="fast", tier2="strong"), AegisDecoder(problem, constant_model(0.9), 0.5, tier1="fast", tier2="strong")
     for syndrome in shots[0][:5]:
         fast, full = never.decode_shot(syndrome), always.decode_shot(syndrome)
         assert fast.escalated == (not fast.converged or fast.risk >= 0.5) and full.escalated
@@ -180,7 +180,7 @@ def test_cached_routing_equals_the_online_decoder(problem, shots):
         records[name] = {"failed": np.array(failed), "converged": np.array([r.converged for r in results]),
                          "weight": np.array([r.weight for r in results]), "seconds": np.ones(8)}
     failed, seconds, escalated = policy.route(records["fast"], records["strong"], np.ones(8, bool), overhead=0.5)
-    online = AegisDecoder(problem, model, threshold)
+    online = AegisDecoder(problem, model, threshold, tier1="fast", tier2="strong")
     online_failed = [((problem.L @ online.decode_shot(s).error) % 2 != o).any() for s, o in zip(shots[0][:8], shots[2])]
     assert list(failed) == online_failed and escalated.all() and (seconds == 2.5).all()
 

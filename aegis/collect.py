@@ -31,7 +31,7 @@ from mgccorrection.paths import DATA, ROOT
 from . import CALIB_SEED, TEST_SEED, TRAIN_SEED, VAL_SEED, features
 from .problem import Problem
 
-SEEDS = {"train": TRAIN_SEED, "test": TEST_SEED, "val": VAL_SEED, "calib": CALIB_SEED}
+SEEDS = {"train": TRAIN_SEED, "test": TEST_SEED, "val": VAL_SEED, "calib": CALIB_SEED, "timing": 5}
 RECORDS = ROOT / "experiments" / "records"       # committed: test and validation records
 TRAIN_RECORDS = DATA / "records"                 # not committed: regenerate with `make data`
 MANIFEST = ROOT / "experiments" / "manifest.json"
@@ -87,7 +87,7 @@ def _decode_chunk(job):
     return index, out
 
 
-def collect(split, basis, p, f, shots, tiers, seed=None, workers=8, chunk=250, model_path=None, threshold=None,
+def collect(split, basis, p, f, shots, tiers, seed=None, workers=8, chunk=50, model_path=None, threshold=None,
             force=False, log=print):
     """Decode and cache. Returns the path of the record file."""
     seed = SEEDS[split] if seed is None else seed
@@ -184,7 +184,7 @@ def main():
     parser.add_argument("--tiers", nargs="+", required=True)
     parser.add_argument("--seed", type=int, help="only for extra training data; test is frozen at 2")
     parser.add_argument("--workers", type=int, default=8)
-    parser.add_argument("--chunk", type=int, default=250)
+    parser.add_argument("--chunk", type=int, default=50)
     parser.add_argument("--model")
     parser.add_argument("--threshold", type=float)
     parser.add_argument("--force", action="store_true")

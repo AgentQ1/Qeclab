@@ -38,10 +38,14 @@ class AegisDecoder:
     """
     has_features = True
 
-    def __init__(self, problem, model, threshold, use_flags=False, tier1="fast", tier2="strong"):
+    def __init__(self, problem, model, threshold=None, use_flags=False, tier1=None, tier2=None):
+        """Tiers and threshold default to the ones stored with the model (chosen on validation data)."""
         suffix = "+flags" if use_flags and problem.f else ""
+        tier1 = (tier1 or model.meta["tier1"]).split("+")[0]
+        tier2 = (tier2 or model.meta["tier2"]).split("+")[0]
         self.tier1, self.tier2 = build(tier1 + suffix, problem), build(tier2 + suffix, problem)
-        self.model, self.threshold = model, threshold
+        self.model = model
+        self.threshold = model.meta["threshold"] if threshold is None else threshold
 
     def decode_shot(self, syndrome, other_weight=0, fired=()):
         start = time.perf_counter()

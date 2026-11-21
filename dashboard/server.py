@@ -1,0 +1,191 @@
+"""QEC-Aegis dashboard: a local web page over the real decoder and the stored experiment records.
+
+  python dashboard/server.py [--port 8765] [--no-browser]
+
+Standard library only, and offline: it binds to 127.0.0.1, makes no outgoing connection and
+needs no account. Every payload carries a `source` label that the page shows next to the data:
+
+  live       computed now, on this machine, by the same code as the benchmarks
+  stored     read from experiments/ (measured earlier; the record says when and how)
+  reference  copied from the starter kit's README (not measured here)
+
+Live decoding is bounded to the kit's noise strengths, one shot per request.
+"""
+import argparse
+import json
+import sys
+import threading
+import time
+import webbrowser
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(ROOT))
+
+import numpy as np  # noqa: E402
+
+from aegis import features  # noqa: E402
+from aegis.decoder import AegisDecoder, load_model  # noqa: E402
+from aegis.problem import Problem  # noqa: E402
+from aegis.tiers import build  # noqa: E402
+
+PAGE = Path(__file__).parent / "index.html"
+MODELS = ROOT / "models"
+REPORTS = ROOT / "experiments" / "reports"
+FIGURES = ROOT / "docs" / "figures"
+ALLOWED_P = [0.003, 0.004, 0.005]
+ALLOWED_F = [0.0, 0.25, 0.5, 0.75]
+# Starter-kit README, "Reference results with 10,000 shots per basis". Not measured on this machine.
+REFERENCE = [
+    {"p": 0.003, "decoder": "BP-OSD", "failures": "26, 30", "ler": 4.7e-4, "mean_s": 0.14},
+    {"p": 0.003, "decoder": "relay-BP", "failures": "3, 2", "ler": 4.2e-5, "mean_s": 0.10},
+    {"p": 0.004, "decoder": "BP-OSD", "failures": "253, 269", "ler": 4.4e-3, "mean_s": 0.33},
+    {"p": 0.004, "decoder": "relay-BP", "failures": "45, 60", "ler": 8.7e-4, "mean_s": 0.38},
+    {"p": 0.005, "decoder": "BP-OSD", "failures": "1302, 1286", "ler": 2.3e-2, "mean_s": 0.59},
+    {"p": 0.005, "decoder": "relay-BP", "failures": "411, 414", "ler": 6.9e-3, "mean_s": 1.7},
+]
+_cache, _lock = {}, threading.Lock()
+
+
+def model_for(f):
+    """The routed decoder's risk model: the loss model under erasure, if it exists."""
+    name = "aegis_router_loss.joblib" if f and (MODELS / "aegis_router_loss.joblib").exists() else "aegis_router.joblib"
+    if name not in _cache:
+        _cache[name] = load_model(MODELS / name)
+    return _cache[name]
+
+
+def setup(basis, p, f):
+    """Problem and decoders of one setting, built once and kept."""
+    key = (basis, p, f)
+    if key not in _cache:
+        problem = Problem(basis, p, f)
+        model = model_for(f)
+        flags = "+flags" if f else ""
+        _cache[key] = {"problem": problem, "model": model,
+                       "aegis": AegisDecoder(problem, model, use_flags=bool(f)),
+                       "relay": build("relay" + flags, problem), "bposd": build("bposd" + flags, problem)}
+    return _cache[key]
+
+
+def decode_live(basis, p, f, seed, baselines):
+    """Sample one shot and decode it. Everything returned was computed in this call."""
+    if basis not in ("X", "Z") or p not in ALLOWED_P or f not in ALLOWED_F:
+        raise ValueError(f"allowed: basis X or Z, p in {ALLOWED_P}, erasure fraction in {ALLOWED_F}")
+    with _lock:
+        s = setup(basis, p, f)
+        problem, model = s["problem"], s["model"]
+        syndromes, other, obs, fired = problem.sample(1, int(seed))
+        syndrome, truth = syndromes[0], obs[0]
+
+        def outcome(result, seconds):
+            predicted = (problem.L @ result.error) % 2
+            return {"logical_correct": bool((predicted == truth).all()), "ms": seconds * 1e3,
+                    "explains_syndrome": bool(((problem.H @ result.error) % 2 == syndrome).all()),
+                    "bp_iterations": int(result.iterations), "predicted_observables": predicted.tolist()}
+
+        start = time.perf_counter()
+        result = s["aegis"].decode_shot(syndrome, int(other[0].sum()), fired[0])
+        decoders = {"QEC-Aegis": outcome(result, time.perf_counter() - start)}
+        for name, label in (("relay", "relay-BP"), ("bposd", "BP-OSD")):
+            if name in baselines:
+                start = time.perf_counter()
+                baseline = s[name].decode_shot(syndrome, int(other[0].sum()), fired[0])
+                decoders[label] = outcome(baseline, time.perf_counter() - start)
+        # Heralds per syndrome round: a herald's detector id grows with time in the circuit.
+        herald_rounds = np.zeros(problem.rounds, int)
+        if len(fired[0]):
+            position = np.searchsorted(problem.herald_ids, fired[0]) / max(len(problem.herald_ids), 1)
+            np.add.at(herald_rounds, np.minimum((position * problem.rounds).astype(int), problem.rounds - 1), 1)
+        return {
+            "source": "live", "basis": basis, "p": p, "f": f, "seed": int(seed),
+            "syndrome": syndrome.reshape(problem.rounds, problem.checks).tolist(),
+            "true_observables": truth.tolist(), "heralds": int(len(fired[0])), "herald_rounds": herald_rounds.tolist(),
+            "decoders": decoders,
+            "routing": {"risk": result.risk, "threshold": model.meta["threshold"], "escalated": bool(result.escalated),
+                        "tier1": model.meta["tier1"], "tier2": model.meta["tier2"], "tier1_converged": bool(result.features[0]),
+                        "path": ("tier 1 -> tier 2 (tier 1 did not converge)" if result.escalated and not result.features[0]
+                                 else "tier 1 -> tier 2 (risk above threshold)" if result.escalated else "tier 1 accepted"),
+                        "ms_tier1": result.seconds_tier1 * 1e3, "ms_model": result.seconds_model * 1e3,
+                        "ms_tier2": result.seconds_tier2 * 1e3, "model": model.meta.get("name", model.kind)},
+            "features": dict(zip(features.NAMES, (float(v) for v in result.features))),
+            "feature_groups": features.GROUPS,
+        }
+
+
+def stored_results():
+    """The measured evaluation, as written by aegis.evaluate. None when it has not been run."""
+    path = REPORTS / "evaluation.json"
+    if not path.exists():
+        return {"source": "stored", "available": False}
+    report = json.loads(path.read_text())
+    slim = {key: {setting: {k: v for k, v in result.items() if k != "frontier"} for setting, result in report.get(key, {}).items()}
+            for key in ("sweep", "timing", "loss")}
+    return {"source": "stored", "available": True, "written": time.strftime("%Y-%m-%d %H:%M", time.localtime(path.stat().st_mtime)),
+            "model": report["model"], **slim, "figures": sorted(f.name for f in FIGURES.glob("*.png")) if FIGURES.exists() else []}
+
+
+class Handler(BaseHTTPRequestHandler):
+    def send(self, body, kind="application/json", status=200):
+        data = body if isinstance(body, bytes) else json.dumps(body).encode()
+        self.send_response(status)
+        self.send_header("Content-Type", kind)
+        self.send_header("Content-Length", str(len(data)))
+        self.send_header("Cache-Control", "no-store")
+        self.end_headers()
+        self.wfile.write(data)
+
+    def do_GET(self):
+        path = self.path.split("?")[0]
+        if path == "/":
+            self.send(PAGE.read_bytes(), "text/html; charset=utf-8")
+        elif path == "/api/status":
+            model = model_for(0.0)
+            self.send({"source": "live", "offline": True, "allowed_p": ALLOWED_P, "allowed_f": ALLOWED_F,
+                       "model": {k: v for k, v in model.meta.items() if k != "feature_names"}, "kind": model.kind})
+        elif path == "/api/results":
+            self.send(stored_results())
+        elif path == "/api/reference":
+            self.send({"source": "reference", "origin": "challenge-1-ml-decoder-kit/README.md", "rows": REFERENCE})
+        elif path.startswith("/figures/") and (FIGURES / Path(path).name).is_file() and path.endswith(".png"):
+            self.send((FIGURES / Path(path).name).read_bytes(), "image/png")
+        else:
+            self.send({"error": "not found"}, status=404)
+
+    def do_POST(self):
+        if self.path != "/api/decode":
+            return self.send({"error": "not found"}, status=404)
+        try:
+            body = json.loads(self.rfile.read(int(self.headers.get("Content-Length", 0))) or b"{}")
+            self.send(decode_live(body.get("basis", "X"), float(body.get("p", 0.004)), float(body.get("f", 0.0)),
+                                  int(body.get("seed", 1)), body.get("baselines", ["relay", "bposd"])))
+        except (ValueError, KeyError, TypeError) as error:
+            self.send({"error": str(error)}, status=400)
+
+    def log_message(self, *args):
+        pass
+
+
+def serve(port=8765):
+    return ThreadingHTTPServer(("127.0.0.1", port), Handler)
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    parser.add_argument("--port", type=int, default=8765)
+    parser.add_argument("--no-browser", action="store_true")
+    args = parser.parse_args()
+    server = serve(args.port)
+    url = f"http://127.0.0.1:{args.port}/"
+    print(f"QEC-Aegis dashboard at {url}  (local only; Ctrl-C to stop)")
+    if not args.no_browser:
+        threading.Timer(0.5, webbrowser.open, [url]).start()
+    try:
+        server.serve_forever()
+    except KeyboardInterrupt:
+        pass
+
+
+if __name__ == "__main__":
+    main()

@@ -1,0 +1,202 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>QEC-Aegis: failure-aware adaptive decoding of the Gross code</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+  :root { --bg:#f6f7f9; --card:#fff; --ink:#1b2430; --muted:#5d6b7c; --line:#dde2e8; --accent:#2456a6;
+          --ok:#1d7a46; --bad:#b3261e; --warn:#9a6700; --live:#1d7a46; --stored:#2456a6; --ref:#6b4fa0; --illus:#8a6d1a; }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg:#12161c; --card:#1b212a; --ink:#e7ecf2; --muted:#9aa7b6; --line:#2e3742; --accent:#7fb0ff;
+            --ok:#5fd08f; --bad:#ff8a80; --warn:#e3b341; --live:#5fd08f; --stored:#7fb0ff; --ref:#c4a7f5; --illus:#e3c66b; } }
+  * { box-sizing:border-box; }
+  body { margin:0; font:15px/1.45 -apple-system, "Segoe UI", Helvetica, Arial, sans-serif; background:var(--bg); color:var(--ink); }
+  header { padding:20px 28px 8px; }
+  h1 { margin:0; font-size:22px; } h2 { margin:0 0 10px; font-size:16px; } h3 { margin:14px 0 6px; font-size:13px; color:var(--muted); text-transform:uppercase; letter-spacing:.04em; }
+  p.sub { margin:4px 0 0; color:var(--muted); }
+  main { display:grid; grid-template-columns:repeat(12, 1fr); gap:16px; padding:12px 28px 40px; }
+  section { background:var(--card); border:1px solid var(--line); border-radius:10px; padding:16px 18px; grid-column:span 12; }
+  @media (min-width:1100px) { .half { grid-column:span 6; } .third { grid-column:span 4; } .twothird { grid-column:span 8; } }
+  .badge { display:inline-block; font-size:11px; font-weight:600; padding:1px 8px; border-radius:10px; border:1px solid currentColor; vertical-align:middle; margin-left:8px; }
+  .live { color:var(--live); } .stored { color:var(--stored); } .reference { color:var(--ref); } .illustrative { color:var(--illus); }
+  label { font-size:13px; color:var(--muted); margin-right:14px; white-space:nowrap; }
+  select, input[type=number], button { font:inherit; padding:5px 8px; border:1px solid var(--line); border-radius:6px; background:var(--card); color:var(--ink); }
+  button { background:var(--accent); color:#fff; border-color:var(--accent); cursor:pointer; padding:6px 16px; font-weight:600; }
+  @media (prefers-color-scheme: dark) { button { color:#0d1117; } }
+  button:disabled { opacity:.5; cursor:wait; }
+  table { border-collapse:collapse; width:100%; font-size:13.5px; }
+  th, td { text-align:right; padding:5px 8px; border-bottom:1px solid var(--line); font-variant-numeric:tabular-nums; }
+  th:first-child, td:first-child { text-align:left; } th { color:var(--muted); font-weight:600; }
+  .ok { color:var(--ok); font-weight:600; } .bad { color:var(--bad); font-weight:600; } .muted { color:var(--muted); }
+  .rounds { display:flex; flex-wrap:wrap; gap:8px; }
+  .round { text-align:center; font-size:11px; color:var(--muted); }
+  canvas { display:block; border:1px solid var(--line); border-radius:3px; }
+  .path { display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin:8px 0; }
+  .step { border:1px solid var(--line); border-radius:8px; padding:8px 12px; min-width:120px; }
+  .step.on { border-color:var(--accent); box-shadow:inset 0 0 0 1px var(--accent); } .step.off { opacity:.45; }
+  .step b { display:block; font-size:13px; } .step span { font-size:12px; color:var(--muted); }
+  .meter { position:relative; height:14px; background:var(--line); border-radius:7px; margin:18px 0 22px; }
+  .meter i { position:absolute; top:-4px; width:3px; height:22px; border-radius:2px; }
+  .meter em { position:absolute; top:22px; font-size:11px; font-style:normal; color:var(--muted); transform:translateX(-50%); white-space:nowrap; }
+  .features { display:grid; grid-template-columns:repeat(auto-fill, minmax(210px, 1fr)); gap:2px 18px; font-size:12.5px; }
+  .features div { display:flex; justify-content:space-between; border-bottom:1px dotted var(--line); padding:1px 0; }
+  .figs { display:grid; grid-template-columns:repeat(auto-fit, minmax(380px, 1fr)); gap:14px; }
+  .figs img { width:100%; border:1px solid var(--line); border-radius:6px; background:#fff; }
+  .note { font-size:12.5px; color:var(--muted); margin:8px 0 0; }
+  .err { color:var(--bad); }
+</style>
+</head>
+<body>
+<header>
+  <h1>QEC-Aegis <span class="muted" style="font-weight:400">failure-aware adaptive decoding of the Gross [[144,12,12]] code</span></h1>
+  <p class="sub">A local simulation. No quantum hardware and no network service is used. Each panel says where its numbers come from:
+    <span class="badge live">live computation</span><span class="badge stored">stored measured experiment</span><span class="badge reference">reference result</span><span class="badge illustrative">illustrative</span></p>
+</header>
+<main>
+  <section>
+    <h2>A. Run one memory experiment <span class="badge live">live computation</span></h2>
+    <label>Memory basis <select id="basis"><option>X</option><option>Z</option></select></label>
+    <label>Physical error rate p <select id="p"></select></label>
+    <label>Erasure fraction f <select id="f"></select></label>
+    <label>Shot seed <input id="seed" type="number" value="7" min="0" style="width:90px"></label>
+    <label><input type="checkbox" id="relay" checked> relay-BP</label>
+    <label><input type="checkbox" id="bposd" checked> BP-OSD</label>
+    <button id="run">Sample and decode</button> <button id="next" style="background:transparent;color:var(--accent)">Next seed</button>
+    <span id="status" class="muted" style="margin-left:10px"></span>
+    <p class="note">Stim samples one shot of the 12-cycle memory circuit (288 qubits) on this machine and the decoders run on it now. Times are single measurements on this machine and vary from click to click; the first run of a setting also builds the decoders.</p>
+  </section>
+
+  <section class="twothird">
+    <h2>Syndrome <span class="badge live">live computation</span></h2>
+    <div id="syndrome" class="rounds"><span class="muted">Run a shot to see its syndrome.</span></div>
+    <p class="note" id="syndromeNote">Each tile is one syndrome round on the code's 12 × 6 torus of checks. A filled cell is a detector that fired: a check whose value changed since the round before. The number under a tile counts heralded erasures in that round.</p>
+  </section>
+  <section class="third">
+    <h2>B. Decoder comparison <span class="badge live">live computation</span></h2>
+    <table id="decoders"><thead><tr><th>Decoder</th><th>Logical outcome</th><th>Time</th><th>BP iterations</th></tr></thead><tbody><tr><td colspan="4" class="muted">No shot yet.</td></tr></tbody></table>
+    <p class="note">"Correct" means all 12 predicted logical observables match the simulator's truth. Every answer shown explains the syndrome when the decoder converged; that alone does not make it logically correct.</p>
+  </section>
+
+  <section>
+    <h2>C. Why the router decided this <span class="badge live">live computation</span></h2>
+    <div class="path" id="path"><span class="muted">No shot yet.</span></div>
+    <div id="risk"></div>
+    <h3>Features the model read</h3>
+    <div class="features" id="features"></div>
+    <p class="note">All features come from the syndrome, the herald flags, the nominal p and the tier-1 decoder's own output. The true error and the true observables are never an input.</p>
+  </section>
+
+  <section>
+    <h2>D. Measured results on the frozen test set <span class="badge stored">stored measured experiment</span></h2>
+    <div id="results"><span class="muted">Loading…</span></div>
+    <div class="figs" id="figures"></div>
+  </section>
+
+  <section class="half">
+    <h2>Starter-kit reference <span class="badge reference">reference result</span></h2>
+    <table id="reference"><thead><tr><th>p</th><th>Decoder</th><th>Failures X, Z</th><th>LER per cycle</th><th>Mean time</th></tr></thead><tbody></tbody></table>
+    <p class="note">Copied from the starter kit's README (10,000 shots per basis, the kit authors' machine). Not measured here; shown for comparison with panel D.</p>
+  </section>
+  <section class="half">
+    <h2>How it works <span class="badge illustrative">illustrative</span></h2>
+    <svg viewBox="0 0 640 150" style="width:100%;max-width:640px" role="img" aria-label="Pipeline diagram">
+      <defs><marker id="arrow" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="currentColor"/></marker></defs>
+      <g font-size="11" fill="currentColor" stroke="currentColor" text-anchor="middle">
+        <g fill="none"><rect x="4" y="50" width="100" height="44" rx="6"/><rect x="134" y="50" width="100" height="44" rx="6"/><rect x="264" y="50" width="100" height="44" rx="6"/><rect x="394" y="8" width="100" height="44" rx="6"/><rect x="394" y="96" width="100" height="44" rx="6"/><rect x="534" y="50" width="100" height="44" rx="6"/></g>
+        <g stroke="none"><text x="54" y="69">Stim memory</text><text x="54" y="84">syndrome + flags</text><text x="184" y="69">Tier 1: relay-BP</text><text x="184" y="84">first solution</text><text x="314" y="69">Risk model</text><text x="314" y="84">P(tier 1 wrong)</text><text x="444" y="27">risk &lt; threshold</text><text x="444" y="42">accept tier 1</text><text x="444" y="115">risk ≥ threshold</text><text x="444" y="130">Tier 2: stronger</text><text x="584" y="69">Logical</text><text x="584" y="84">prediction</text></g>
+        <g fill="none" marker-end="url(#arrow)"><path d="M104,72 H132"/><path d="M234,72 H262"/><path d="M364,64 L392,36"/><path d="M364,80 L392,112"/><path d="M494,30 L532,62"/><path d="M494,118 L532,84"/></g>
+      </g>
+    </svg>
+    <p class="note">Schematic of the decoder, not data. Panel C shows the same path with the measured values of one shot.</p>
+  </section>
+</main>
+<script>
+const $ = id => document.getElementById(id);
+const fmt = (v, d=1) => v == null ? "–" : Number(v).toLocaleString("en-US", {maximumFractionDigits:d, minimumFractionDigits:d});
+const sci = v => v == null ? "–" : Number(v).toExponential(2);
+const ms = v => v == null ? "–" : (v >= 1000 ? fmt(v / 1000, 2) + " s" : fmt(v, v < 10 ? 2 : 1) + " ms");
+const css = name => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+
+async function init() {
+  const status = await (await fetch("/api/status")).json();
+  $("p").innerHTML = status.allowed_p.map(p => `<option ${p === 0.004 ? "selected" : ""}>${p}</option>`).join("");
+  $("f").innerHTML = status.allowed_f.map(f => `<option>${f}</option>`).join("");
+  const ref = await (await fetch("/api/reference")).json();
+  $("reference").tBodies[0].innerHTML = ref.rows.map(r => `<tr><td>${r.p}</td><td style="text-align:left">${r.decoder}</td><td>${r.failures}</td><td>${sci(r.ler)}</td><td>${r.mean_s} s</td></tr>`).join("");
+  showResults(await (await fetch("/api/results")).json());
+}
+
+function showResults(r) {
+  if (!r.available) { $("results").innerHTML = '<span class="muted">No stored evaluation yet. Run <code>make benchmark</code>.</span>'; return; }
+  let html = `<p class="note">Written ${r.written} by <code>aegis.evaluate</code>. Model: ${r.model.name}, threshold ${Number(r.model.threshold).toExponential(2)}, tiers ${r.model.tier1} → ${r.model.tier2}. A shot pair fails when the X or the Z memory shot fails; intervals are 95%.</p>`;
+  const block = (title, settings, note) => {
+    let out = `<h3>${title}</h3><table><thead><tr><th>Setting</th><th>Decoder</th><th>Pairs</th><th>Failures X, Z</th><th>LER per cycle</th><th>95% interval</th><th>Mean</th><th>Median</th><th>p99</th><th>Escalated</th></tr></thead><tbody>`;
+    for (const [setting, result] of Object.entries(settings)) for (const [name, d] of Object.entries(result.decoders))
+      out += `<tr><td>${setting}</td><td style="text-align:left">${name}</td><td>${d.pairs}</td><td>${d.failures_X}, ${d.failures_Z}</td><td>${sci(d.ler)}</td><td>${sci(d.ler_ci95[0])} – ${sci(d.ler_ci95[1])}</td><td>${ms(d.ms_mean)}</td><td>${ms(d.ms_median)}</td><td>${ms(d.ms_p99)}</td><td>${d.escalated_fraction == null ? "" : fmt(100 * d.escalated_fraction) + "%"}</td></tr>`;
+    return out + `</tbody></table><p class="note">${note}</p>`;
+  };
+  if (Object.keys(r.timing || {}).length) html += block("Latency benchmark (one worker, nothing else running)", Object.fromEntries(Object.entries(r.timing).map(([p, v]) => ["p = " + p, v])), "Times per shot pair (X + Z). This run is for latency; its shot count is too small for the error rates, which come from the table below.");
+  if (Object.keys(r.sweep || {}).length) html += block("Required sweep (frozen test shots, seed 2)", Object.fromEntries(Object.entries(r.sweep).map(([p, v]) => ["p = " + p, v])), "Decoded with parallel workers, so absolute times here are inflated by contention; use them for ratios between decoders on the same shots.");
+  if (Object.keys(r.loss || {}).length) html += block("Heralded erasure at p = 0.004", Object.fromEntries(Object.entries(r.loss).map(([f, v]) => ["f = " + f, v])), "Simplified heralded-erasure model, not a full neutral-atom loss model. Total noise rises slightly with f (see docs/LIMITATIONS.md).");
+  $("results").innerHTML = html;
+  $("figures").innerHTML = (r.figures || []).map(f => `<img src="/figures/${f}" alt="${f}">`).join("");
+}
+
+function drawSyndrome(d) {
+  const box = $("syndrome"); box.innerHTML = "";
+  const cell = 9, cols = 12, rows = d.syndrome[0].length / cols;
+  d.syndrome.forEach((round, k) => {
+    const wrap = document.createElement("div"); wrap.className = "round";
+    const c = document.createElement("canvas"); c.width = cols * cell; c.height = rows * cell;
+    const g = c.getContext("2d"); g.fillStyle = css("--card"); g.fillRect(0, 0, c.width, c.height);
+    g.fillStyle = css("--accent");
+    round.forEach((bit, i) => { if (bit) g.fillRect((i % cols) * cell + 1, Math.floor(i / cols) * cell + 1, cell - 2, cell - 2); });
+    const fired = round.reduce((a, b) => a + b, 0), heralds = d.herald_rounds[k];
+    wrap.appendChild(c);
+    wrap.insertAdjacentHTML("beforeend", `round ${k + 1}: ${fired}${d.f ? ` · <span style="color:var(--warn)">${heralds} ⚑</span>` : ""}`);
+    box.appendChild(wrap);
+  });
+  const total = d.syndrome.flat().reduce((a, b) => a + b, 0);
+  $("syndromeNote").textContent = `${d.basis} memory, p = ${d.p}, erasure fraction ${d.f}, seed ${d.seed}: ${total} of ${d.syndrome.flat().length} detectors fired` + (d.f ? `, ${d.heralds} heralded erasures (⚑ per round).` : ".") + " Each tile is one round on the 12 × 6 torus of checks; a filled cell is a check whose value changed since the round before.";
+}
+
+function showShot(d) {
+  drawSyndrome(d);
+  $("decoders").tBodies[0].innerHTML = Object.entries(d.decoders).map(([name, o]) =>
+    `<tr><td>${name}</td><td class="${o.logical_correct ? "ok" : "bad"}">${o.logical_correct ? "correct" : "logical error"}${o.explains_syndrome ? "" : " (did not converge)"}</td><td>${ms(o.ms)}</td><td>${o.bp_iterations}</td></tr>`).join("");
+  const r = d.routing;
+  $("path").innerHTML = `
+    <div class="step on"><b>Tier 1 · ${r.tier1}</b><span>${r.tier1_converged ? "converged" : "did not converge"} · ${ms(r.ms_tier1)}</span></div>→
+    <div class="step on"><b>Risk model · ${r.model}</b><span>risk ${Number(r.risk).toExponential(2)} · ${ms(r.ms_model)}</span></div>→
+    <div class="step ${r.escalated ? "off" : "on"}"><b>Accept tier 1</b><span>risk below threshold</span></div>
+    <div class="step ${r.escalated ? "on" : "off"}"><b>Tier 2 · ${r.tier2}</b><span>${r.escalated ? ms(r.ms_tier2) : "not run"}</span></div>
+    <b style="margin-left:8px">${r.path}</b>`;
+  // Risk on a log scale from 1e-6 to 1.
+  const pos = v => 100 * Math.min(1, Math.max(0, (Math.log10(Math.max(v, 1e-6)) + 6) / 6));
+  $("risk").innerHTML = `<div class="meter"><i style="left:${pos(r.threshold)}%;background:var(--muted)"></i><em style="left:${pos(r.threshold)}%">threshold ${Number(r.threshold).toExponential(1)}</em>
+    <i style="left:${pos(r.risk)}%;background:${r.escalated ? "var(--bad)" : "var(--ok)"}"></i><em style="left:${pos(r.risk)}%;top:-20px">risk ${Number(r.risk).toExponential(1)}</em></div>
+    <p class="note">Estimated probability that the tier-1 answer is logically wrong, log scale from 10⁻⁶ to 1.</p>`;
+  $("features").innerHTML = Object.entries(d.feature_groups).map(([group, names]) => names.map(n =>
+    `<div><span>${n.replaceAll("_", " ")} <span class="muted">· ${group}</span></span><b>${fmt(d.features[n], 3)}</b></div>`).join("")).join("");
+}
+
+async function run() {
+  $("run").disabled = true; $("status").className = "muted"; $("status").textContent = "sampling and decoding…";
+  const started = performance.now();
+  try {
+    const baselines = ["relay", "bposd"].filter(n => $(n).checked);
+    const response = await fetch("/api/decode", {method:"POST", headers:{"Content-Type":"application/json"},
+      body: JSON.stringify({basis:$("basis").value, p:+$("p").value, f:+$("f").value, seed:+$("seed").value, baselines})});
+    const d = await response.json();
+    if (!response.ok) throw new Error(d.error);
+    showShot(d); $("status").textContent = `done in ${fmt((performance.now() - started) / 1000, 1)} s (includes sampling and, on first use, building the decoders)`;
+  } catch (e) { $("status").className = "err"; $("status").textContent = "failed: " + e.message; }
+  $("run").disabled = false;
+}
+$("run").onclick = run;
+$("next").onclick = () => { $("seed").value = +$("seed").value + 1; run(); };
+init();
+</script>
+</body>
+</html>
