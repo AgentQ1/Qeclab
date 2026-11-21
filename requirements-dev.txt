@@ -4,3 +4,4 @@
 scikit-learn    # router models (TEAM_PLAN.md step 2)
 matplotlib      # plots (analyze.py)
 pytest          # tests
+joblib          # model artifacts
