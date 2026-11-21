@@ -83,6 +83,9 @@ def main():
     rows = []
     ps = sorted({re.search(r"_p([\d.]+)\.npz", f).group(1) for f in glob.glob(f"{args.dir}/test_X_p*.npz")})
     for p in ps:
+        if not os.path.exists(f"{args.dir}/test_Z_p{p}.npz"):
+            print(f"p={p}: waiting for test_Z_p{p}.npz")
+            continue
         router = train_router(args.dir, p)
         px = policies(load(f"{args.dir}/test_X_p{p}.npz"), router)
         pz = policies(load(f"{args.dir}/test_Z_p{p}.npz"), router)
