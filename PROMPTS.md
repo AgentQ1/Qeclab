@@ -81,3 +81,23 @@ Clone https://github.com/MGCquantum/MGCcorrection, cd challenge-1-ml-decoder-kit
 Then: git pull && python analyze.py --dir results
 Show me the printed table and open results/results.png. Do not edit code. Compare the numbers against the targets in ../SPEC.md ("What working means") and tell me which targets pass and which fail.
 ```
+
+## Erasure rerun (corrected model). Computers 4 and 5, as soon as they're free
+The first erasure run used a prior that was too low and a noise model that added extra noise. Both are fixed. The old files were moved to `results_old_erasure_model/` and are not used.
+
+**Computer 5:**
+```text
+cd into MGCcorrection/challenge-1-ml-decoder-kit, run git pull, then source .venv/bin/activate. Do not edit code.
+Run these two blocks in two terminals at the same time (caffeinate -i on a Mac); show me each summary line:
+Terminal 1: for f in 0 0.25; do python run_job.py --basis X --p 0.004 --f $f --shots 1000 --seed 2 --decoders bposd bposd_flags --out results/erase_X_p0.004_f$f.npz; done
+Terminal 2: for f in 0 0.25; do python run_job.py --basis Z --p 0.004 --f $f --shots 1000 --seed 2 --decoders bposd bposd_flags --out results/erase_Z_p0.004_f$f.npz; done
+When both finish: git pull && git add -f results/erase_*.npz && git commit -m "results: erasure rerun, computer 5" && git push
+```
+**Computer 4:**
+```text
+cd into MGCcorrection/challenge-1-ml-decoder-kit, run git pull, then source .venv/bin/activate. Do not edit code.
+Run these two blocks in two terminals at the same time (caffeinate -i on a Mac); show me each summary line:
+Terminal 1: for f in 0.5 0.75; do python run_job.py --basis X --p 0.004 --f $f --shots 2000 --seed 2 --decoders bposd bposd_flags --out results/erase_X_p0.004_f$f.npz; done
+Terminal 2: for f in 0.5 0.75; do python run_job.py --basis Z --p 0.004 --f $f --shots 2000 --seed 2 --decoders bposd bposd_flags --out results/erase_Z_p0.004_f$f.npz; done
+When both finish: git pull && git add -f results/erase_*.npz && git commit -m "results: erasure rerun, computer 4" && git push
+```
