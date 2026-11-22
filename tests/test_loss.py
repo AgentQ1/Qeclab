@@ -3,6 +3,8 @@
 The model is a heralded-erasure approximation of atom loss (an erased qubit is replaced by a
 maximally mixed one and flagged). It is not a full neutral-atom loss model.
 """
+from collections import Counter
+
 import numpy as np
 import pytest
 import stim
@@ -23,6 +25,22 @@ TINY = stim.Circuit("""
     DETECTOR(1) rec[-1]
     OBSERVABLE_INCLUDE(0) rec[-1]
 """)
+
+
+def expected_faults(circuit):
+    """Expected number of fault events per shot, per noise instruction.
+
+    One event is one channel firing: DEPOLARIZE2 counts once per qubit pair, every other channel
+    once per qubit.
+    """
+    faults = Counter()
+    for instruction in circuit.flattened():
+        args = instruction.gate_args_copy()
+        if not stim.gate_data(instruction.name).is_noisy_gate or not args:
+            continue
+        qubits = sum(t.is_qubit_target for t in instruction.targets_copy())
+        faults[instruction.name] += args[0] * qubits / (2 if instruction.name == "DEPOLARIZE2" else 1)
+    return faults
 
 
 @pytest.fixture(scope="module")
@@ -49,14 +67,25 @@ def test_flagged_erasure_flips_with_probability_one_half(tiny):
     assert flip.mean() == pytest.approx(blind[0], abs=0.003) and blind[0] == pytest.approx(0.22)
 
 
-def test_team_erased_prior_is_too_low():
-    """lossy.py sets a flagged erasure column to 0.25. The analytic value above is 0.5.
+def test_team_flagged_prior_counts_components(gross):
+    """lossy.py gives a flagged erasure column 1/4 per Pauli component merged into it, so 0.5 when the
+    two Paulis that flip the column were merged: the analytic value above.
 
-    Documented finding: lossy.aware_matrices merges the two Paulis that flip a column into one
-    column, so the chance given the flag is 2 x 1/4. The decoders still work with 0.25, but
-    they under-weight flagged erasures. aegis.problem uses the value derived from the circuit.
+    Documented finding: it counts error-model entries, not probability. For about 6% of the erasure
+    columns Stim has already merged X and Y into one entry (for example error(0.0005) D144 D1944 D4104),
+    so lossy.py counts one component and sets 0.25, although the chance given the flag is still 1/2.
+    aegis.problem divides probabilities instead and gets 1/2 for those columns too.
     """
-    assert lossy.ERASED_PRIOR == 0.25
+    _, _, base, herald_col, n_components = lossy.aware_matrices(gross.circuit, gross.basis)
+    erasure = herald_col >= 0
+    priors = lossy.shot_priors(base, herald_col, np.unique(herald_col[erasure]), n_components)
+    assert lossy.COMPONENT_PRIOR == 0.25
+    assert set(np.unique(priors[erasure])) == {0.25, 0.5}
+    assert (priors[erasure] == lossy.COMPONENT_PRIOR * n_components[erasure]).all()
+    single = erasure & (n_components == 1)
+    assert 0.05 < single.sum() / erasure.sum() < 0.08
+    for herald in np.unique(herald_col[single]):
+        assert [chance for _, chance in gross.herald_effects[int(herald)]] == [pytest.approx(0.5)]
 
 
 def test_lossy_circuit_keeps_detectors_and_observables_valid():
@@ -69,8 +98,11 @@ def test_lossy_circuit_keeps_detectors_and_observables_valid():
 
 
 def test_heralds_fire_at_the_erasure_rate(gross):
+    """A herald fires at its erasure probability: f p after a one-qubit channel and f p / 2 per qubit
+    after a two-qubit channel, so fewer than len(herald_ids) x f p fire per shot."""
+    expected = expected_faults(gross.circuit)["HERALDED_ERASE"]
+    assert expected < 0.6 * len(gross.herald_ids) * gross.f * gross.p
     _, _, _, fired = gross.sample(300, seed=5)
-    expected = len(gross.herald_ids) * gross.f * gross.p
     assert np.mean([len(x) for x in fired]) == pytest.approx(expected, rel=0.05)
 
 
@@ -98,14 +130,25 @@ def test_shot_priors(gross):
     assert chances == {0.5}
 
 
-def test_erasure_adds_noise_at_fixed_p(gross):
-    """SPEC.md says the total error rate is held fixed. It is not, exactly: a two-qubit channel of
-    strength p becomes DEPOLARIZE2((1-f)p) plus an erasure of strength f p on each of its two
-    qubits, so more faults occur as f grows: about 6% more in one memory basis at f = 0.5.
-    Results at different f are therefore close to, but not exactly at, equal noise."""
-    plain = Problem("X", 0.004)
-    assert 1.04 < gross.priors.sum() / plain.priors.sum() < 1.09
-    assert gross.pauli_priors.sum() < plain.priors.sum()
+def test_erasure_keeps_the_fault_budget_at_fixed_p(gross):
+    """SPEC.md says the total error rate is held fixed. In fault events it is, exactly: a channel of
+    strength p becomes DEPOLARIZE((1-f)p) plus erasures of total strength f p, and preparation and
+    measurement flips are unchanged.
+
+    Documented finding: fewer columns flip as f grows. An erasure is I a quarter of the time and
+    hits one qubit, so per qubit a two-qubit gate flips a column with chance (8/15)p at f = 0 but
+    (1-f)(8/15)p + f p/4 with erasure; one-qubit channels go from (2/3)p to (1-f)(2/3)p + f p/2.
+    At f = 0.5 the blind priors of one memory basis add up to about 14% less. Lower logical error
+    at larger f is therefore partly less noise, not only better use of the flags."""
+    no_erasure = Problem("X", 0.004)
+    plain, lossy_faults = expected_faults(no_erasure.circuit), expected_faults(gross.circuit)
+    assert sum(lossy_faults.values()) == pytest.approx(sum(plain.values()), rel=1e-9)
+    for name in ["X_ERROR", "Z_ERROR"]:
+        assert lossy_faults[name] == pytest.approx(plain[name])
+    depolarizing = plain["DEPOLARIZE1"] + plain["DEPOLARIZE2"]
+    assert lossy_faults["HERALDED_ERASE"] == pytest.approx(gross.f * depolarizing)
+    assert 0.82 < gross.priors.sum() / no_erasure.priors.sum() < 0.89
+    assert gross.pauli_priors.sum() < gross.priors.sum()
 
 
 def test_flags_help_on_the_same_shots(gross):
