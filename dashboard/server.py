@@ -13,7 +13,11 @@ Live decoding is bounded to the kit's noise strengths, one shot per request.
 """
 import argparse
 import json
+import os
 import sys
+
+# Request threads must not start OpenMP thread pools (see aegis/model.py). Set before numpy loads.
+os.environ.setdefault("OMP_NUM_THREADS", "1")
 import threading
 import time
 import webbrowser

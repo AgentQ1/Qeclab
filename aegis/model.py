@@ -9,19 +9,23 @@ Scores are calibrated with Platt scaling on shots the model was not trained on, 
 probability and one threshold means the same thing at every noise strength.
 A shot on which tier 1 did not converge has risk 1 by definition and never reaches the model.
 """
+import os
 from dataclasses import dataclass, field
 
-import numpy as np
-from sklearn.ensemble import HistGradientBoostingClassifier
-from sklearn.linear_model import LogisticRegression
-from sklearn.metrics import average_precision_score, roc_auc_score
+# One decode is one thread. Without this, scikit-learn starts an OpenMP thread pool for every
+# per-shot prediction, which costs far more than the prediction itself. threadpool_limits only
+# reaches the thread that calls it, so the environment variable covers threads started later,
+# such as the dashboard's request threads. It must be set before OpenMP starts.
+os.environ.setdefault("OMP_NUM_THREADS", "1")
 
-from threadpoolctl import threadpool_limits
+import numpy as np  # noqa: E402
+from sklearn.ensemble import HistGradientBoostingClassifier  # noqa: E402
+from sklearn.linear_model import LogisticRegression  # noqa: E402
+from sklearn.metrics import average_precision_score, roc_auc_score  # noqa: E402
+from threadpoolctl import threadpool_limits  # noqa: E402
 
-from . import features
+from . import features  # noqa: E402
 
-# One decode is one thread. Without this, scikit-learn starts a thread pool for every per-shot
-# prediction, which costs far more than the prediction itself.
 threadpool_limits(1)
 
 CONVERGED = features.NAMES.index("converged")
