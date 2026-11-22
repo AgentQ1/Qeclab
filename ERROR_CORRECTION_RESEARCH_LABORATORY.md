@@ -65,4 +65,4 @@ is typed by hand.
 - `docs/IBM_CONNECTION_STATUS.md`: live IBM check, safety design, reauthentication
 - `docs/DEMO_RUNBOOK.md`: setup checklist and the three-minute judge demonstration
 - `lab/README.md`: the frontend
-- `README.md`: the challenge statement
+- `docs/CHALLENGE.md`: the original challenge statement

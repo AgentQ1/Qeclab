@@ -1,130 +1,94 @@
-<img width="2172" height="724" alt="qubits-and-gradients" src="assets/qubits-and-gradients.png" />
+# QEC Lab: QEC-Aegis and the Error Correction Research Laboratory
 
-# Infleqtion Challenge: Qubits & Gradients
+ML-assisted decoding of IBM's `[[144,12,12]]` Gross code, built for MidQWest 2026 (Infleqtion Challenge 1:
+ML-assisted QEC decoding), together with a local, interactive laboratory that runs from single-qubit physics up to
+the decoder itself.
 
-Quantum computation and machine learning are two rapidly emerging fields that have largely evolved in parallel, but their respective capabilities also create opportunities for them to advance one another. Quantum computers have the potential to offer more efficient modeling of contextual relationships. Meanwhile, new machine learning techniques can help address current challenges in quantum computing by bolstering quantum error correction (QEC) decoders.
+Everything runs on one laptop, offline. Nothing in this repository submits work to quantum hardware.
 
-For this hackathon, choose one of two challenges exploring the intersection of these two fields. We anticipate the first challenge to require some prerequisite knowledge of QEC, whereas the second challenge is more beginner-friendly.
+## QEC-Aegis
 
----
+A learned router in front of relay-BP:
 
-# Challenge 1: ML-Assisted QEC Decoding
+1. A fast early-stopping relay-BP decodes every shot.
+2. A gradient-boosted risk model reads features of that decode and predicts whether its answer is wrong.
+3. Only risky or unconverged shots are escalated to full relay-BP.
 
-## Challenge
+The model, its threshold and the tier pair were chosen on validation data and frozen before any test shot was
+decoded with them. Their hashes are in [experiments/reports/frozen_models.json](experiments/reports/frozen_models.json).
+QEC-Aegis is compared against BP-OSD, relay-BP, early-stop relay-BP, a no-ML rule, a hand-picked heuristic, and an
+oracle router that knows the true answer (an unattainable bound).
 
-QEC decoders must identify and correct errors quickly. They must also stay accurate. Powerful decoders can be computationally expensive. Simpler decoders may be faster but less accurate.
+The frozen-test evaluation covers physical error rates p = 0.003, 0.004 and 0.005 (X and Z), erasure fractions
+f = 0.25, 0.5 and 0.75, and a single-worker latency benchmark. Final tables are generated into
+[docs/RESULTS.md](docs/RESULTS.md) by `python -m aegis.report`. No result is typed by hand.
 
-For this challenge, teams will work with the Gross code, a quantum low-density parity-check (qLDPC) code in the bivariate bicycle family. Its parameters are `[[144, 12, 12]]` — 12 logical qubits in 144 data qubits, with a code distance of 12.
+## Quick start
 
-This challenge focuses on using machine learning to improve decoding, especially in the presence of qubit loss in addition to conventional Pauli errors. These error mechanisms are relevant to neutral-atom hardware where information about loss may be available to the decoder.
+Requires Python 3.12 and Node.js.
 
-## Task
+```bash
+make setup        # create .venv from requirements.lock, run diagnostics and tests
+make dev          # start the research lab at http://127.0.0.1:3100/  (make dev-stop to stop)
+make test         # Python test suite (about 2 minutes)
+```
 
-Build an ML-assisted decoder that improves an existing QEC decoder. Start with the BP-OSD and relay-BP decoders as baselines and examine whether a machine-learning approach can improve its accuracy, speed, or ability to handle loss.
+Reproducing the evaluation:
 
-**We have provided a possible scaffolding for this decoder comparison [here](challenge-1-ml-decoder-kit.zip). Download the zip file and follow its setup instructions before implementing your decoder.**
+```bash
+make data             # decode training, calibration and validation shots (~2.5 h on 8 cores, resumable)
+make train            # train, calibrate and select the risk model (~2 min)
+make evaluate-frozen  # frozen test records, online run, timing, evaluate, figures (hours, resumable)
+make evaluate         # recompute all tables from cached records (seconds)
+make figures          # redraw docs/figures from the stored evaluation
+```
 
-One approach is hierarchical decoding: use a fast first-stage decoder for simpler error patterns and pass harder cases to a stronger decoder. Machine learning could help identify likely errors, make use of loss information, or decide when a result should be passed to the next stage.
+Run `make help` for the full list.
 
-The goal is to see whether your decoder can outperform the baseline, particularly when loss information is available.
+## The research laboratory
 
-## Requirements
+Eight modules, served by a Next.js app on port 3100:
 
-- Set up the code and baseline decoders. Download the [decoder kit](challenge-1-ml-decoder-kit.zip) and run the BP-OSD and relay-BP decoders, then reproduce their baseline performance before making changes.
-- Simulate memory experiments with noise. Use heralding information, such as loss-detection flags, where available.
-- Build your ML-assisted decoder. Use syndrome information and, where applicable, loss information. You can build a standalone decoder or add a learned component to an existing decoding pipeline.
-- Compare your decoder against the baseline approaches under the same noise conditions.
+| # | Page | Content |
+|---|---|---|
+| 1 | `/foundations` | Qubit states, Bloch sphere, Pauli operators, measurement, Bell states, noise channels |
+| 2 | `/error-correction` | Repetition code, stabilizers, syndromes, distance, logical operators |
+| 3 | `/surface-code` | Rotated surface code at d = 3 and 5, space-time detectors, minimum-weight matching |
+| 4 | `/gross-code` | Bivariate bicycle construction, check matrices, GF(2) ranks, Tanner graph, memory circuit |
+| 5 | `/decoders` | BP, BP-OSD, relay-BP and the QEC-Aegis router, with the design studies |
+| 6 | `/experiments` | Bounded live simulations on the real backends |
+| 7 | `/results` | Frozen-test evaluation: LER per cycle with 95% intervals, paired comparisons, latency, erasure |
+| 8 | `/hardware` | Read-only IBM Quantum account status and an archived, checksum-verified hardware job |
 
-## Possible Approaches
+Every number on screen is labelled with its source: exact theory, live simulation, stored measurement, published
+reference, IBM account check, or archived hardware.
 
-Some possible directions:
+| Service | Port | Code |
+|---|---|---|
+| Research lab (Next.js) | 3100 | [lab/](lab/) |
+| QEC-Aegis API | 8765 | [dashboard/](dashboard/) |
+| Simulation API (FastAPI) | 8000 | companion repository |
 
-- **[Learned predecoders](https://github.com/NVIDIA/ising-decoding):** Train a model to recognize common error patterns and resolve them before passing the remaining syndrome to a stronger decoder.
-- **Confidence-based routing:** Predict whether a decoding result is reliable enough to accept or should be sent to a stronger decoder.
-- **Belief propagation:** Use BP as a partial decoder, resolving confident corrections before passing the remaining syndrome onward.
-- **CNNs or graph neural networks:** Use neural networks to identify patterns in syndrome data, potentially using the structure of the code or its Tanner graph.
-- **Leakage tracking:** Use temporal models, such as hidden Markov models, to identify leakage events and inform decoding.
+## Repository layout
 
-> **Note:** You do not need to implement a hierarchical decoder. These are possible ways to approach the problem, not a required set of methods.
+| Path | Contents |
+|---|---|
+| [aegis/](aegis/) | Decoder tiers, features, risk model, routing policy, training, evaluation, figures, report |
+| [dashboard/](dashboard/) | QEC-Aegis API used by the lab |
+| [lab/](lab/) | Research laboratory frontend |
+| [experiments/](experiments/) | Experiment manifest, decoded shot records, evaluation reports |
+| [models/](models/) | Frozen router models |
+| [scripts/](scripts/) | Environment setup, experiment runners, dev server control |
+| [tests/](tests/) | Python tests, including independent checks of the Gross code |
+| [challenge-1-ml-decoder-kit/](challenge-1-ml-decoder-kit/) | The challenge's baseline decoder kit |
+| [docs/](docs/) | Architecture, results, setup, demo runbook, IBM connection notes |
 
-## Experiments and Metrics
+## Documents
 
-Compare your decoder with the BP-OSD and relay-BP baselines using the same test data and noise conditions. While more experiments are encouraged for a more thorough analysis, we *require* one for this challenge:
-
-- A sweep of your decoder across the physical error rates `[0.003, 0.004, 0.005]`.
-
-Required metrics to report include logical error rate, decoding latency*, and decoder resource requirements. In your evaluation, discuss where your approach works well and where it falls short.
-
-\*This is where hierarchical decoding approaches really shine!
-
-## Deliverables
-
-- A working decoder, the code used to generate training and test data, and the script for reproducing evaluation results on GitHub.
-- A comparison of your decoder to the baselines, including at least one plot of logical error rate or decoding time.
-- A short presentation or demo explaining the approach and results.
-
-## Stretch Goals
-
-- Train a router to decide when to accept a first-stage result or invoke a stronger decoder.
-- Test the approach on a second QEC code or code family.
-- Run the decoder on sliding syndrome windows.
-- Study how performance changes with code distance.
-- Estimate the hardware cost of the decoder, such as GPU resource usage or latency.
-
-## Recommended Tools
-
-A few open-source tools may be useful for this Challenge:
-
-- **[qLDPC](https://github.com/qLDPCOrg/qLDPC):** A library for working with quantum error-correcting codes. It can be used for code construction and related QEC workflows.
-- **[clifft](https://github.com/unitaryfoundation/clifft/releases/tag/v0.13.0):** A non-Clifford simulation tool extended from [Stim](https://github.com/quantumlib/stim) for quantum error correction and decoding workflows that support leakage, loss, etc.
-
----
-
-# Challenge 2: Give Your LLM a Quantum Backend
-
-## Challenge
-
-Language models use classical machine-learning methods for tasks like processing language, representing context, and handling memory and reasoning. This challenge asks whether quantum computing could play a useful role in any part of this process.
-
-## Task
-
-Develop a pipeline that integrates quantum computing or information processing into a sequence or language modeling task. This requires you to identify stages within a classical machine learning workflow that could benefit from quantum information processing, and develop a quantum backend that can execute those tasks.
-
-For example, you could explore how quantum contextuality could be used to represent relationships between tokens, encode word sequences with quantum states and quantum circuits, or formulate an ML subproblem as a QUBO or related optimization problem to generate candidate solutions. However, don't feel required to tie your project to any of these.
-
-We're keeping this challenge deliberately open-ended, so feel free to think outside the box, get creative, and surprise us!
-
-## Requirements
-
-- Use an existing or custom language model for a language-modeling or sequence-processing task.
-- Identify a part of the workflow where quantum computing or quantum information processing could be useful.
-- Implement a backend that sends this part of the computation to a quantum simulator or hardware and returns results to the application.
-- Use at least one quantum algorithm or information-processing technique.
-- Demonstrate the full workflow, from input to final output.
-
-## Experiments and Metrics
-
-Evaluate your application using metrics that make sense for the task. These must include accuracy, execution time, and resource requirements. Additional metrics can include solution quality/sampling diversity, circuit depth, and/or qubit count.
-
-## Deliverables
-
-- Your working application that connects a language or sequence model to a quantum backend, with the workflow uploaded to GitHub.
-- An evaluation using appropriate metrics.
-- A short presentation or demo highlighting your approach and results.
-
-## Stretch Goals
-
-- Use Superstaq to optimize circuits for execution on available hardware.
-- Support multiple quantum hardware platforms or simulators.
-- Route tasks between classical and quantum backends based on problem characteristics or estimated execution costs.
-- Build a workflow where quantum outputs influence later language-model processing.
-- Compare the quantum approach with a classical baseline.
-
----
-
-# Shared Expectations
-
-- Be prepared to explain why you chose your approach and what role quantum computing or machine learning plays in it.
-- Results should be clear and reproducible, and the corresponding GitHub codebase should follow best coding practices.
-- You can use existing libraries and tools rather than implementing everything from scratch.
-- AI use is encouraged — but be prepared to explain your implementation!
+- [ERROR_CORRECTION_RESEARCH_LABORATORY.md](ERROR_CORRECTION_RESEARCH_LABORATORY.md): laboratory overview and status
+- [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md): how the pieces fit together
+- [docs/RESULTS.md](docs/RESULTS.md): generated results tables
+- [docs/SETUP.md](docs/SETUP.md): environment setup
+- [docs/DEMO_RUNBOOK.md](docs/DEMO_RUNBOOK.md): setup checklist and the three-minute demonstration
+- [docs/IBM_CONNECTION_STATUS.md](docs/IBM_CONNECTION_STATUS.md): read-only IBM check and its safety design
+- [docs/CHALLENGE.md](docs/CHALLENGE.md): the original Infleqtion challenge statement
