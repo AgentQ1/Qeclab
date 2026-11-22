@@ -34,6 +34,8 @@ from aegis.decoder import AegisDecoder, load_model  # noqa: E402
 from aegis.problem import Problem  # noqa: E402
 from aegis.tiers import build  # noqa: E402
 
+import lab_api  # noqa: E402  (read-only payloads for the research-lab frontend in lab/)
+
 PAGE = Path(__file__).parent / "index.html"
 MODELS = ROOT / "models"
 REPORTS = ROOT / "experiments" / "reports"
@@ -50,6 +52,9 @@ REFERENCE = [
     {"p": 0.005, "decoder": "relay-BP", "failures": "411, 414", "ler": 6.9e-3, "mean_s": 1.7},
 ]
 _cache, _lock = {}, threading.Lock()
+LAB_ROUTES = {"/api/gross/structure": lab_api.gross_structure, "/api/records": lab_api.records_summary,
+              "/api/manifest": lab_api.manifest, "/api/calibration": lab_api.calibration,
+              "/api/training": lab_api.training}
 
 
 def model_for(f):
@@ -190,6 +195,11 @@ class Handler(BaseHTTPRequestHandler):
             self.send(stored_results())
         elif path == "/api/reference":
             self.send({"source": "reference", "origin": "challenge-1-ml-decoder-kit/README.md", "rows": REFERENCE})
+        elif path in LAB_ROUTES:
+            try:
+                self.send(LAB_ROUTES[path]())
+            except Exception as error:
+                self.send({"error": f"{type(error).__name__}: {str(error)[:300]}"}, status=500)
         elif path.startswith("/figures/") and (FIGURES / Path(path).name).is_file() and path.endswith(".png"):
             self.send((FIGURES / Path(path).name).read_bytes(), "image/png")
         else:

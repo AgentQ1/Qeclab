@@ -24,3 +24,24 @@ jobs:
       - run: python -m venv .venv && .venv/bin/python -m pip install -r requirements.lock
       - run: .venv/bin/python scripts/diagnose.py
       - run: .venv/bin/python -m pytest
+
+  # The research-lab frontend: types, unit tests of its exact-math libraries, and a production build.
+  # The browser E2E suite (lab/e2e) needs both local Python backends and runs on a workstation.
+  lab:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: lab
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: lab/package-lock.json
+      - run: npm ci
+        env:
+          PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: "1"
+      - run: npx tsc --noEmit
+      - run: npx vitest run
+      - run: npx next build
