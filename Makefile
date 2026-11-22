@@ -1,7 +1,7 @@
 # QEC-Aegis. Every target runs locally; none contacts quantum hardware or a cloud service.
 PY := .venv/bin/python
 
-.PHONY: help setup test diagnose data train benchmark timing evaluate figures demo dev dev-stop legacy-demo evaluate-frozen lab-test study clean-checkpoints
+.PHONY: help setup test diagnose data train benchmark timing evaluate figures demo dev dev-stop evaluate-frozen lab-test study clean-checkpoints
 
 help:
 	@echo "make setup      create .venv from requirements.lock, run diagnostics and tests"
@@ -16,7 +16,6 @@ help:
 	@echo "make demo       same as make dev"
 	@echo "make evaluate-frozen  train, frozen test records, online run, timing, evaluate, figures (hours; resumable; progress in the lab)"
 	@echo "make lab-test   lab type check, unit tests and browser end-to-end tests (needs make dev running)"
-	@echo "make legacy-demo  the old QEC-Aegis page on :8765 (kept for rollback)"
 
 setup:
 	./scripts/setup_env.sh
@@ -59,9 +58,6 @@ dev-stop:
 	./scripts/dev.sh stop
 
 demo: dev
-
-legacy-demo:
-	$(PY) dashboard/server.py
 
 evaluate-frozen:
 	./scripts/run_frozen_evaluation.sh

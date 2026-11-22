@@ -47,18 +47,18 @@ def post(url, body):
         return error.code, json.loads(error.read())
 
 
-def test_page_labels_every_kind_of_data(url):
-    status, body = get(url + "/")
-    page = body.decode()
-    assert status == 200 and "QEC-Aegis" in page
-    for label in ("live computation", "stored measured experiment", "reference result", "illustrative"):
-        assert label in page
+def test_root_sends_the_browser_to_the_research_lab(url):
+    class NoRedirect(urllib.request.HTTPRedirectHandler):
+        def redirect_request(self, *a, **k):
+            return None
+    with pytest.raises(urllib.error.HTTPError) as caught:
+        urllib.request.build_opener(NoRedirect).open(url + "/", timeout=10)
+    assert caught.value.code == 302 and caught.value.headers["Location"] == server.LAB_URL
+    assert not (ROOT / "dashboard" / "index.html").exists()        # the legacy page is gone; the lab replaced it
 
 
-def test_page_and_server_are_offline():
-    """No external address in the page, no outgoing-connection code in the server, local bind only."""
-    page = (ROOT / "dashboard" / "index.html").read_text()
-    assert "http://" not in page and "https://" not in page
+def test_server_is_offline():
+    """No outgoing-connection code in the server, local bind only."""
     source = (ROOT / "dashboard" / "server.py").read_text()
     for forbidden in ("urllib.request", "requests", "qiskit", "socket.create_connection"):
         assert forbidden not in source
@@ -228,18 +228,3 @@ def test_methods_come_from_the_code(url):
     assert m["feature_groups"] == features.GROUPS
     for route in ("/api/pipeline", "/api/evaluation"):
         assert json.loads(get(url + route)[1])["source"] in ("live", "stored")
-
-
-def test_api_only_mode_redirects_the_page_to_the_lab_and_keeps_the_api(url, monkeypatch):
-    monkeypatch.setattr(server, "API_ONLY", True)
-    request = urllib.request.Request(url + "/")
-    class NoRedirect(urllib.request.HTTPRedirectHandler):
-        def redirect_request(self, *a, **k):
-            return None
-    opener = urllib.request.build_opener(NoRedirect)
-    with pytest.raises(urllib.error.HTTPError) as caught:
-        opener.open(request, timeout=10)
-    assert caught.value.code == 302 and caught.value.headers["Location"] == server.LAB_URL
-    assert json.loads(get(url + "/api/status")[1])["source"] == "live"
-    monkeypatch.setattr(server, "API_ONLY", False)
-    assert b"QEC-Aegis" in get(url + "/")[1]                     # the legacy page is kept for rollback

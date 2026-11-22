@@ -18,16 +18,15 @@ IBM Quantum hardware.
 ## Run
 
 ```bash
-make dev            # from MidQWest-2026: starts both API backends (--api-only) and the lab
+make dev            # from MidQWest-2026: starts both API backends and the lab
                     #   http://127.0.0.1:3100/   (the only user-facing dashboard)
 make dev-stop       # stops what make dev started
 make evaluate-frozen   # the frozen-test pipeline; its progress shows in Module 7
 ```
 
-`make dev` expects the MidQwest checkout at `~/MidQwest` (override with `MIDQWEST_DIR`). With
-`--api-only`, `/` on :8765 and :8000 redirects here. The legacy pages are kept for rollback
-(`make legacy-demo`; MidQwest's `dashboard/serve.py` without the flag). See `MIGRATION.md` for the
-feature-parity matrix.
+`make dev` expects the MidQwest checkout at `~/MidQwest` (override with `MIDQWEST_DIR`). `/` on
+:8765 and :8000 redirects here. The two legacy dashboard pages were removed after their features
+were migrated and verified; see `MIGRATION.md`.
 
 ## Modules
 
@@ -47,9 +46,8 @@ feature-parity matrix.
 ```bash
 npx tsc --noEmit        # types
 npx vitest run          # exact-math libraries against known results (Born rule, Bell stabilizers, binomial sums, Wilson = aegis.policy.wilson, GF(2), BP/OSD)
-npx playwright test     # browser E2E on a production build (lab.spec, migration.spec, parity.spec)
+npx playwright test     # browser E2E on a production build (lab.spec, migration.spec)
 ```
 
 `make lab-test` runs all of it. The E2E suites need `make dev` running and use the installed Chrome
-(`channel: "chrome"`). `parity.spec.ts` also starts the two legacy pages on :8766 and :8001 and
-checks that they and the lab show the same values for the same requests.
+(`channel: "chrome"`).

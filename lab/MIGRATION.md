@@ -1,22 +1,23 @@
 # Migration of the legacy dashboards into the research lab
 
-The research lab (`http://127.0.0.1:3100`) replaces two legacy pages:
+The research lab (`http://127.0.0.1:3100`) replaced two legacy pages:
 
-- the QEC-Aegis page served by `dashboard/server.py` on :8765 (this repository)
-- the MidQwest page served by `dashboard/serve.py` on :8000 (the MidQwest repository)
+- the QEC-Aegis page served by `dashboard/server.py` on :8765 (this repository, `dashboard/index.html`)
+- the MidQwest page served by `dashboard/serve.py` on :8000 (MidQwest repository, `dashboard/static/`)
 
-Both backends keep every API route. With `--api-only` (the default under `make dev`), their `/`
-redirects to the lab. The legacy pages are still in the source and come back without the flag:
-`make legacy-demo`, or `dashboard/serve.py` in MidQwest. Rolling back means dropping `--api-only`.
+Both servers remain as the lab's API backends, and their `/` now redirects to the lab. After every
+legacy feature passed the parity checks below, **the legacy pages and the code and tests that existed
+only for them were removed** (2026-11-21). For rollback, the last versions are in git:
+MidQWest-2026 commit `c333d94` (`dashboard/index.html`, `lab/e2e/parity.spec.ts`) and MidQwest
+commit `7f62129` (`dashboard/static/`, `tests/test_dashboard_e2e.py`).
 
 ## How parity was verified
 
-`lab/e2e/parity.spec.ts` starts both legacy pages from the same code on their own ports (8766, 8001).
-For each feature, the legacy page makes a request, the lab replays the same request (same seed), and
-the test asserts that the responses are identical and that both pages display the same values.
-`lab/e2e/migration.spec.ts` holds a regression test for every migrated feature, and `lab/e2e/lab.spec.ts`
-checks every module against its API responses. The pytest suites of both backends cover the new
-endpoints (`tests/test_dashboard.py` here, `tests/test_dashboard_api.py` in MidQwest).
+Before removal, `lab/e2e/parity.spec.ts` (in `c333d94`) started both legacy pages from the same code on
+their own ports. For each feature, the legacy page made a request, the lab replayed the same request
+(same seed), and the test asserted that the responses were identical and that both pages displayed the
+same values. All 4 parity tests passed, together with the other 19 browser tests (23/23).
+`lab/e2e/migration.spec.ts` keeps a regression test for every migrated feature.
 
 ## Feature-parity matrix
 
@@ -57,4 +58,3 @@ Gross-code Tanner graph and DEM, MWPM visualization, and Modules 1–2.
 |---|---|---|
 | **No frozen-test results exist yet** | The test-set pipeline stopped at `test_Z_p0.004` (87 of 200 chunks). The erasure router is not trained, and the online, timing and evaluate steps have never run. | `make evaluate-frozen` (several hours, resumable). The lab shows its progress and switches to the final view only when `aegis.evaluate` covers every setting. |
 | Final-figure gallery not exercised with real images | `aegis.figures` has not run (it needs the evaluation) | Same pipeline: its `figures` step |
-| Legacy-mode parity tests start extra servers on 8766 and 8001 | They need the legacy pages, which the default startup no longer serves | Nothing: Playwright starts them automatically |

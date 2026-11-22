@@ -107,8 +107,8 @@ export default function Decoders() {
         <Prose className="mb-6 max-w-[54rem]">
           <p>
             The design was settled by measurement on validation shots (seed 3), never on the frozen test shots. The studies below are read from the reports
-            that <span className="num">aegis.study</span>, <span className="num">aegis.train</span> and <span className="num">aegis.predecoder</span> wrote. They are the
-            complete decoder-research record that the legacy QEC-Aegis page showed, with each figure&apos;s assumptions and limits stated.
+            that <span className="num">aegis.study</span>, <span className="num">aegis.train</span> and <span className="num">aegis.predecoder</span> wrote. Each figure
+            states its assumptions and limits.
           </p>
         </Prose>
         <PairedOutcomes />

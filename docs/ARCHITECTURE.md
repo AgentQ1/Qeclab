@@ -28,9 +28,8 @@ flowchart LR
 | Records | `aegis/collect.py` | Decodes a fixed set of shots once per tier, caches everything per shot, checkpoints and resumes. |
 | Selection | `aegis/train.py` | Fits and calibrates the models and chooses tiers, model and threshold on validation shots. |
 | Evaluation | `aegis/evaluate.py`, `aegis/report.py`, `aegis/figures.py` | Tables, `docs/RESULTS.md` and figures from the frozen test records. |
-| API | `dashboard/server.py`, `dashboard/lab_api.py` | Local HTTP API over the same decoder, the stored records and the evaluation (`--api-only` under `make dev`). |
+| API | `dashboard/server.py`, `dashboard/lab_api.py` | Local HTTP API over the same decoder, the stored records and the evaluation. `/` redirects to the lab. |
 | Research lab | `lab/` | The user-facing dashboard on :3100 (Next.js). It reads this API and the MidQwest simulation API, and has no simulation code of its own. See `lab/README.md` and `lab/MIGRATION.md`. |
-| Legacy page | `dashboard/index.html` | The previous dashboard, kept for rollback (`make legacy-demo`). |
 
 The starter kit (`challenge-1-ml-decoder-kit/`) is used as shipped: its circuits, its sampler, its
 matrices, its decoder settings and its failure and rate definitions.
