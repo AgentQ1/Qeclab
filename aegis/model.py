@@ -16,7 +16,13 @@ from sklearn.ensemble import HistGradientBoostingClassifier
 from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import average_precision_score, roc_auc_score
 
+from threadpoolctl import threadpool_limits
+
 from . import features
+
+# One decode is one thread. Without this, scikit-learn starts a thread pool for every per-shot
+# prediction, which costs far more than the prediction itself.
+threadpool_limits(1)
 
 CONVERGED = features.NAMES.index("converged")
 
@@ -54,7 +60,7 @@ class RiskModel:
         return float(self.risks(f[None, :])[0])
 
 
-def train(F, y, kind="gbm", groups=("tier1", "syndrome", "temporal", "loss"), feature=None, seed=0):
+def train(F, y, kind="gbm", groups=tuple(features.GROUPS), feature=None, seed=0):
     """Fit a risk model on converged tier-1 shots. y marks the logically wrong ones."""
     keep = F[:, CONVERGED] > 0
     F, y = np.asarray(F[keep], np.float64), np.asarray(y[keep], bool)
@@ -81,8 +87,10 @@ def train(F, y, kind="gbm", groups=("tier1", "syndrome", "temporal", "loss"), fe
 def calibrate(model, F, y):
     """Platt scaling on held-out shots: fit risk = sigmoid(a * score + b). Returns the model."""
     keep = F[:, CONVERGED] > 0
-    scores = model.scores(F[keep]).reshape(-1, 1)
-    fit = LogisticRegression(C=1e6, max_iter=2000).fit(scores, np.asarray(y[keep], bool))
+    scores, labels = model.scores(F[keep]).reshape(-1, 1), np.asarray(y[keep], bool)
+    if labels.all() or not labels.any():
+        return model          # nothing to calibrate against; the scores stay as they are
+    fit = LogisticRegression(C=1e6, max_iter=2000).fit(scores, labels)
     model.platt = (float(fit.coef_[0, 0]), float(fit.intercept_[0]))
     return model
 

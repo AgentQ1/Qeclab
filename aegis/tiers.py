@@ -23,6 +23,10 @@ SETTINGS = {
     "strong10": {"stop_nconv": 10, "num_sets": 600},
 }
 BP_SETTINGS = {"bp30": {"max_iter": 30}, "bp200": {"max_iter": 200}}
+# First tiers get a second opinion on the shots they found hard: BP followed by order-0 OSD,
+# a cheap decoder that always returns an answer and errs differently from relay-BP.
+SECOND_OPINION = {"fast", "relay1"}
+SECOND_SETTINGS = {"osd_method": "OSD_0", "osd_order": 0}
 
 
 @dataclass
@@ -51,6 +55,9 @@ class Tier:
         # Without flags a tier assumes the blind priors. With flags it gets priors per shot.
         self.weights = llr(problem.priors)
 
+    def reset(self):
+        """Return the decoder to its freshly built state. Only relay-BP keeps state between shots."""
+
     def decode_shot(self, syndrome, other_weight=0, fired=()):
         herald_columns = ()
         if self.use_flags:
@@ -61,24 +68,51 @@ class Tier:
         result = self._decode(syndrome)
         result.weight = float(self.weights[result.error.astype(bool)].sum())
         if self.has_features:
+            second = self._second_opinion(syndrome, result) if self.second is not None else None
             result.features = features.extract(syndrome, result, self.weights, self.problem, self.pre_iter, other_weight,
-                                               fired if self.use_flags else (), herald_columns)
+                                               fired if self.use_flags else (), herald_columns, second)
         return result
 
 
 class RelayTier(Tier):
     has_features = True
 
-    def __init__(self, problem, use_flags=False, **changes):
+    def __init__(self, problem, use_flags=False, second_opinion=False, **changes):
         super().__init__(problem, use_flags)
         self.settings = RELAY_SETTINGS | changes
         self.pre_iter = self.settings["pre_iter"]
         self.H = problem.H.tocsr()
+        self.second = BpOsdDecoder(problem.H, error_channel=list(problem.priors), **(BPOSD_SETTINGS | SECOND_SETTINGS)) \
+            if second_opinion else None
         self._set_priors(problem.priors)
 
     def _set_priors(self, priors):
         # relay-bp has no call to change priors, so the decoder is rebuilt (about 3 ms).
         self.decoder = relay_bp.RelayDecoderF64(self.H, error_priors=np.asarray(priors, np.float64), **self.settings)
+        self.second_stale = True
+        self.current_priors = priors
+
+    def reset(self):
+        # relay-BP draws the memory strengths of its relay legs from a random stream that runs on
+        # from shot to shot, so a hard shot's answer depends on the shots decoded before it.
+        # Rebuilding the decoder restarts the stream.
+        self._set_priors(self.problem.priors)
+
+    def _second_opinion(self, syndrome, result):
+        """(disagrees, weight gap) of BP+OSD-0 against the relay-BP answer, or None when it is not run.
+
+        It runs only when relay-BP converged but needed more than its first leg, which is where
+        wrong answers concentrate. Disagreement means the two answers predict different logical
+        observables. No truth is involved: both predictions are the decoders' own.
+        """
+        if not result.converged or result.iterations <= self.pre_iter:
+            return None
+        if self.second_stale and self.use_flags:
+            self.second.update_channel_probs(np.asarray(self.current_priors, np.float64))
+        self.second_stale = False
+        other = np.asarray(self.second.decode(syndrome), np.uint8)
+        disagrees = bool(((self.problem.L @ (other ^ result.error)) % 2).any())
+        return disagrees, float(self.weights[other.astype(bool)].sum()) - result.weight
 
     def _decode(self, syndrome):
         out = self.decoder.decode_detailed(syndrome)
@@ -125,5 +159,5 @@ def build(name, problem):
     if kind in BP_SETTINGS:
         return BpTier(problem, use_flags, **BP_SETTINGS[kind])
     if kind in SETTINGS:
-        return RelayTier(problem, use_flags, **SETTINGS[kind])
+        return RelayTier(problem, use_flags, second_opinion=kind in SECOND_OPINION, **SETTINGS[kind])
     raise ValueError(f"unknown tier {name}")

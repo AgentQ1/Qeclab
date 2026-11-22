@@ -85,6 +85,8 @@ def decode_live(basis, p, f, seed, baselines):
                     "explains_syndrome": bool(((problem.H @ result.error) % 2 == syndrome).all()),
                     "bp_iterations": int(result.iterations), "predicted_observables": predicted.tolist()}
 
+        for name in ("aegis", "relay", "bposd"):
+            s[name].reset()      # the same seed then gives the same answers, whatever was decoded before
         start = time.perf_counter()
         result = s["aegis"].decode_shot(syndrome, int(other[0].sum()), fired[0])
         decoders = {"QEC-Aegis": outcome(result, time.perf_counter() - start)}

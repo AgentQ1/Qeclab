@@ -8,6 +8,12 @@ experiments/records/<split>_<basis>_p<p>[_f<f>].npz for test and validation and 
 for training data. A second call with more tiers adds them to the same file and decodes nothing
 twice. Work is checkpointed in chunks, so an interrupted run resumes where it stopped.
 
+Reproducibility: relay-BP is a randomized decoder whose random stream runs on from shot to shot.
+Every decoder is reset at the start of a chunk, so a record is a function of (basis, p, f, seed,
+shots, chunk size) and does not depend on the number of workers or on scheduling. Decoding the
+same shots with another chunk size gives statistically equivalent, not identical, answers on
+the shots that need relay legs.
+
 Per tier and shot: failed, seconds (the decode call, including prior updates for herald flags),
 converged, iterations, weight, predicted observables and, for relay-BP tiers, the feature vector.
 `--tiers aegis` runs the complete routed decoder online (needs --model).
@@ -64,6 +70,7 @@ def _decode_chunk(job):
     index, syndromes, other, obs, fired = job
     problem, out = _worker["problem"], {}
     for name, decoder in _worker["decoders"].items():
+        decoder.reset()   # a chunk's result then depends on its shots only, not on what the worker decoded before
         n = len(syndromes)
         rec = {key: np.zeros(n, kind) for key, kind in FIELDS.items()}
         rec["predicted"] = np.zeros((n, obs.shape[1]), np.uint8)
@@ -137,7 +144,7 @@ def collect(split, basis, p, f, shots, tiers, seed=None, workers=8, chunk=50, mo
     wall = time.time() - start
     cpu = (cpu_after.ru_utime + cpu_after.ru_stime) - (cpu_before.ru_utime + cpu_before.ru_stime)
     entry = {"record": str(path.relative_to(ROOT)) if path.is_relative_to(ROOT) else str(path), "split": split, "basis": basis, "p": p, "f": f, "seed": seed,
-             "shots": shots, "tiers": pending, "workers": workers, "wall_seconds": round(wall, 1),
+             "shots": shots, "tiers": pending, "workers": workers, "chunk": chunk, "wall_seconds": round(wall, 1),
              "cpu_seconds": round(cpu, 1), "peak_worker_rss_mb": round(cpu_after.ru_maxrss / 2**20, 1),
              "resumed_chunks": len(bounds) - len(todo), "finished": time.strftime("%Y-%m-%d %H:%M:%S"),
              "model": str(model_path) if model_path else None, "threshold": threshold, "environment": environment()}

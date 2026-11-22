@@ -108,7 +108,7 @@ def test_feature_values(problem, shots, tier1_results):
 def test_features_cannot_see_labels():
     """No label leakage: the extractor is not given observables or the true error."""
     names = set(inspect.signature(features.extract).parameters)
-    assert names == {"syndrome", "result", "weights", "problem", "pre_iter", "other_weight", "fired", "herald_columns"}
+    assert names == {"syndrome", "result", "weights", "problem", "pre_iter", "other_weight", "fired", "herald_columns", "second"}
     source = inspect.getsource(features)
     assert "observable" not in source.replace("true observables", "") and ".L" not in source
 
@@ -259,8 +259,8 @@ def test_collect_caches_resumes_and_is_reproducible(tmp_path, monkeypatch):
     second = collect.load(path)
     assert (second["fast"]["seconds"] == first["fast"]["seconds"]).all() and "bp30" in second
     assert "features" not in second["bp30"]
-    # Same seed, other worker and chunk counts: identical decoding results.
-    collect.collect("val", "X", 0.003, 0.0, 16, ["fast"], workers=1, chunk=5, force=True, log=quiet)
+    # Same seed and chunk size, other worker count: identical decoding results.
+    collect.collect("val", "X", 0.003, 0.0, 16, ["fast"], workers=1, chunk=8, force=True, log=quiet)
     third = collect.load(path)
     assert (third["fast"]["predicted"] == first["fast"]["predicted"]).all()
     assert third["fast"]["features"] == pytest.approx(first["fast"]["features"])
@@ -268,3 +268,48 @@ def test_collect_caches_resumes_and_is_reproducible(tmp_path, monkeypatch):
         collect.collect("test", "X", 0.003, 0.0, 16, ["fast"], seed=5, log=quiet)
     with pytest.raises(ValueError):
         collect.collect("val", "X", 0.003, 0.0, 32, ["bp200"], log=quiet)   # other shot count, same file
+
+
+# ---- second opinion -----------------------------------------------------------------------
+
+def test_second_opinion_runs_only_on_hard_converged_shots(problem):
+    """BP+OSD-0 is consulted when tier 1 converged after its first leg, and never otherwise."""
+    noisy = Problem("X", 0.005)
+    syndromes, _, _, _ = noisy.sample(40, seed=12)
+    tier = build("fast", noisy)
+    ran = 0
+    for syndrome in syndromes:
+        result = tier.decode_shot(syndrome)
+        f = dict(zip(features.NAMES, result.features))
+        hard = result.converged and result.iterations > tier.pre_iter
+        assert f["second_run"] == hard
+        if not hard:
+            assert f["second_disagrees"] == 0 and f["second_weight_gap"] == 0
+        ran += hard
+    assert 0 < ran < 40
+    assert build("relay", noisy).second is None and build("strong10", noisy).second is None
+
+
+def test_second_opinion_compares_predictions_not_truth(problem, shots):
+    """Disagreement is the difference of the two decoders' own logical predictions."""
+    tier = build("fast", problem)
+    result = tier._decode(shots[0][0])
+    result.weight = float(tier.weights[result.error.astype(bool)].sum())
+    result.iterations = tier.pre_iter + 1                 # pretend the shot was hard
+    disagrees, gap = tier._second_opinion(shots[0][0], result)
+    other = np.asarray(tier.second.decode(shots[0][0]), np.uint8)
+    assert disagrees == bool(((problem.L @ other) % 2 != (problem.L @ result.error) % 2).any())
+    assert gap == pytest.approx(tier.weights[other.astype(bool)].sum() - result.weight)
+    assert "obs" not in inspect.signature(tier._second_opinion).parameters
+
+
+def test_relay_bp_depends_on_history_and_reset_removes_it():
+    """Why collect resets decoders per chunk: relay-BP's random stream runs on between shots."""
+    noisy = Problem("X", 0.006)
+    syndromes, _, _, _ = noisy.sample(12, seed=2)
+    tier = build("relay", noisy)
+    first = [tier.decode_shot(s).iterations for s in syndromes]
+    second = [tier.decode_shot(s).iterations for s in syndromes]      # same decoder, later in its stream
+    tier.reset()
+    third = [tier.decode_shot(s).iterations for s in syndromes]
+    assert first != second and first == third

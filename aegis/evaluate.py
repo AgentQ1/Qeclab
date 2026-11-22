@@ -106,11 +106,14 @@ def evaluate_setting(x, z, systems, timing=False):
             escalated_fraction=float((x[online]["escalated"].mean() + z[online]["escalated"].mean()) / 2),
             ms_model_mean=float((x[online]["seconds_model"] + z[online]["seconds_model"]).mean() * 1e3),
             ms_tier1_mean=float((x[online]["seconds_tier1"] + z[online]["seconds_tier1"]).mean() * 1e3))
-        # The cached policy and the online decoder must agree shot by shot.
+        # Tier 1 sees the same shots in the same order in both runs, so the routing decisions must be
+        # identical. Tier 2 is a randomized decoder that has decoded different shots before each
+        # escalated one, so its answers agree statistically, not shot by shot.
         cached = routed(x, z, model, model.meta["threshold"], tier1, tier2, 0.0)
+        n = len(x[online]["failed"]) + len(z[online]["failed"])
         out["online_agrees_with_cached"] = {
-            "decisions": bool((cached[0][2] == x[online]["escalated"]).all() and (cached[1][2] == z[online]["escalated"]).all()),
-            "failures": bool((cached[0][0] == x[online]["failed"]).all() and (cached[1][0] == z[online]["failed"]).all())}
+            "decisions": float(((cached[0][2] == x[online]["escalated"]).sum() + (cached[1][2] == z[online]["escalated"]).sum()) / n),
+            "failures": float(((cached[0][0] == x[online]["failed"]).sum() + (cached[1][0] == z[online]["failed"]).sum()) / n)}
     out["decoders"] = rows
     final = "aegis (online)" if "aegis (online)" in rows else "aegis"
     out["comparisons"] = {f"{final} vs {other}": compare(pairs[final], pairs[other], times[final], times[other])

@@ -47,6 +47,10 @@ class AegisDecoder:
         self.model = model
         self.threshold = model.meta["threshold"] if threshold is None else threshold
 
+    def reset(self):
+        self.tier1.reset()
+        self.tier2.reset()
+
     def decode_shot(self, syndrome, other_weight=0, fired=()):
         start = time.perf_counter()
         first = self.tier1.decode_shot(syndrome, other_weight, fired)

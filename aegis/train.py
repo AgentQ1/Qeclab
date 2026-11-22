@@ -45,13 +45,16 @@ CANDIDATES = {
     "heuristic: solution weight": dict(kind="heuristic", feature="solution_weight"),
     "heuristic: iterations": dict(kind="heuristic", feature="log_iterations"),
     "heuristic: syndrome weight": dict(kind="heuristic", feature="syndrome_weight"),
-    "heuristic: uncertain bits": dict(kind="heuristic", feature="uncertain_bits"),
+    "heuristic: second opinion disagrees": dict(kind="heuristic", feature="second_disagrees"),
     "logistic": dict(kind="logistic"),
     "gbm": dict(kind="gbm"),
-    "gbm, no temporal features": dict(kind="gbm", groups=("tier1", "syndrome", "loss")),
-    "gbm, no tier-1 diagnostics": dict(kind="gbm", groups=("syndrome", "temporal", "loss")),
-    "gbm, tier-1 diagnostics only": dict(kind="gbm", groups=("tier1",)),
-    "gbm, no loss features": dict(kind="gbm", groups=("tier1", "syndrome", "temporal")),
+    "logistic, no second opinion": dict(kind="logistic", groups=("tier1", "syndrome", "temporal", "loss")),
+    "logistic, no temporal features": dict(kind="logistic", groups=("tier1", "syndrome", "loss", "second")),
+    "logistic, no tier-1 diagnostics": dict(kind="logistic", groups=("syndrome", "temporal", "loss", "second")),
+    "logistic, syndrome only": dict(kind="logistic", groups=("syndrome", "temporal")),
+    "logistic, no loss features": dict(kind="logistic", groups=("tier1", "syndrome", "temporal", "second")),
+    "gbm, no second opinion": dict(kind="gbm", groups=("tier1", "syndrome", "temporal", "loss")),
+    "gbm, no loss features": dict(kind="gbm", groups=("tier1", "syndrome", "temporal", "second")),
 }
 LEARNED = ["logistic", "gbm"]
 
@@ -74,7 +77,7 @@ def read(directory, split, settings, tier):
     return np.concatenate(F), np.concatenate(y), np.concatenate(where)
 
 
-def inference_seconds(model, F, repeats=2000):
+def inference_seconds(model, F, repeats=1000):
     """Measured time of one per-shot risk call."""
     rows = F[np.random.default_rng(0).integers(0, len(F), repeats)]
     start = time.perf_counter()
@@ -219,7 +222,7 @@ def main():
         model.meta |= {"tier2": base.meta["tier2"] + flags, "threshold": base.meta["threshold"], "mode": "speed",
                        "threshold_from": "sweep validation (aegis_router.joblib)"}
         joblib.dump(model, MODELS / f"aegis_router{suffix}.joblib")
-        ablation = fitted[(tier1, "gbm, no loss features")]
+        ablation = fitted[(tier1, base.meta["name"] + ", no loss features")]
         ablation.meta |= {"tier2": base.meta["tier2"] + flags, "threshold": base.meta["threshold"], "mode": "speed"}
         joblib.dump(ablation, MODELS / f"aegis_router{suffix}_no_loss_features.joblib")
         report["chosen"] = {"speed": {"tier1": tier1, "tier2": model.meta["tier2"], "model": model.meta["name"],
