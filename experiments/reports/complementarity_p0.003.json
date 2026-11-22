@@ -44,22 +44,22 @@
    "unconverged": 0.000125
   },
   "relay1": {
-   "failures_X": 4,
+   "failures_X": 2,
    "failures_Z": 2,
-   "failures_pair": 6,
-   "ler": 0.00012508601994698498,
-   "ms_mean": 9.658107034978457,
-   "ms_p99": 85.41899051142518,
+   "failures_pair": 4,
+   "ler": 8.337155219761971e-05,
+   "ms_mean": 19.41266785730113,
+   "ms_p99": 194.649863179655,
    "unconverged": 0.0
   },
   "fast": {
-   "failures_X": 9,
-   "failures_Z": 9,
-   "failures_pair": 18,
-   "ler": 0.00037577566845492516,
-   "ms_mean": 8.356961570771091,
-   "ms_p99": 83.30565334250406,
-   "unconverged": 0.00225
+   "failures_X": 11,
+   "failures_Z": 13,
+   "failures_pair": 24,
+   "ler": 0.0005013802940021517,
+   "ms_mean": 16.8888366520423,
+   "ms_p99": 193.2851624971952,
+   "unconverged": 0.00325
   },
   "fast0": {
    "failures_X": 114,
@@ -289,66 +289,66 @@
    "escalated": 0.035375000000000004
   },
   "fast -> relay": {
-   "failures_X": 1,
+   "failures_X": 2,
    "failures_Z": 2,
-   "failures_pair": 3,
-   "ler": 6.252149467522727e-05,
-   "ms_mean": 13.424184643271474,
-   "ms_p99": 83.30565334250406,
-   "escalated": 0.00225
+   "failures_pair": 4,
+   "ler": 8.337155219761971e-05,
+   "ms_mean": 22.63731950554393,
+   "ms_p99": 202.16751124986325,
+   "escalated": 0.00325
   },
   "fast -> relay (perfect router)": {
    "failures_X": 1,
    "failures_Z": 2,
    "failures_pair": 3,
    "ler": 6.252149467522727e-05,
-   "ms_mean": 13.549537882770892,
-   "ms_p99": 84.02072440301663,
-   "escalated": 0.002375
+   "ms_mean": 22.84520716179395,
+   "ms_p99": 204.44968999508984,
+   "escalated": 0.0034999999999999996
   },
   "fast -> strong10": {
-   "failures_X": 1,
+   "failures_X": 2,
    "failures_Z": 2,
-   "failures_pair": 3,
-   "ler": 6.252149467522727e-05,
-   "ms_mean": 17.445655675523994,
-   "ms_p99": 83.30565334250406,
-   "escalated": 0.00225
+   "failures_pair": 4,
+   "ler": 8.337155219761971e-05,
+   "ms_mean": 26.15948669354475,
+   "ms_p99": 202.16751124986325,
+   "escalated": 0.00325
   },
   "fast -> strong10 (perfect router)": {
    "failures_X": 1,
    "failures_Z": 2,
    "failures_pair": 3,
    "ler": 6.252149467522727e-05,
-   "ms_mean": 17.60931092552437,
-   "ms_p99": 84.02072440301663,
-   "escalated": 0.002375
+   "ms_mean": 26.379334933045357,
+   "ms_p99": 204.44968999508984,
+   "escalated": 0.0034999999999999996
   },
   "fast -> strong": {
-   "failures_X": 2,
+   "failures_X": 3,
    "failures_Z": 0,
-   "failures_pair": 2,
-   "ler": 4.167621832917856e-05,
-   "ms_mean": 21.54779576902365,
-   "ms_p99": 83.30565334250406,
-   "escalated": 0.00225
+   "failures_pair": 3,
+   "ler": 6.252149467522727e-05,
+   "ms_mean": 31.63308914179288,
+   "ms_p99": 202.16751124986325,
+   "escalated": 0.00325
   },
   "fast -> strong (perfect router)": {
    "failures_X": 2,
    "failures_Z": 0,
    "failures_pair": 2,
    "ler": 4.167621832917856e-05,
-   "ms_mean": 21.779557935773482,
-   "ms_p99": 84.02072440301663,
-   "escalated": 0.002375
+   "ms_mean": 32.016139277292496,
+   "ms_p99": 204.44968999508984,
+   "escalated": 0.0034999999999999996
   },
   "relay1 -> relay": {
-   "failures_X": 4,
+   "failures_X": 2,
    "failures_Z": 2,
-   "failures_pair": 6,
-   "ler": 0.00012508601994698498,
-   "ms_mean": 9.658107034978457,
-   "ms_p99": 85.41899051142518,
+   "failures_pair": 4,
+   "ler": 8.337155219761971e-05,
+   "ms_mean": 19.41266785730113,
+   "ms_p99": 194.649863179655,
    "escalated": 0.0
   },
   "relay1 -> relay (perfect router)": {
@@ -356,17 +356,17 @@
    "failures_Z": 2,
    "failures_pair": 3,
    "ler": 6.252149467522727e-05,
-   "ms_mean": 11.482508732727183,
-   "ms_p99": 86.90854508877133,
-   "escalated": 0.00075
+   "ms_mean": 20.415644357300152,
+   "ms_p99": 201.8533869959353,
+   "escalated": 0.0005
   },
   "relay1 -> strong10": {
-   "failures_X": 4,
+   "failures_X": 2,
    "failures_Z": 2,
-   "failures_pair": 6,
-   "ler": 0.00012508601994698498,
-   "ms_mean": 9.658107034978457,
-   "ms_p99": 85.41899051142518,
+   "failures_pair": 4,
+   "ler": 8.337155219761971e-05,
+   "ms_mean": 19.41266785730113,
+   "ms_p99": 194.649863179655,
    "escalated": 0.0
   },
   "relay1 -> strong10 (perfect router)": {
@@ -374,27 +374,27 @@
    "failures_Z": 2,
    "failures_pair": 3,
    "ler": 6.252149467522727e-05,
-   "ms_mean": 13.363833628978682,
-   "ms_p99": 86.90854508877133,
-   "escalated": 0.00075
+   "ms_mean": 21.387651440551963,
+   "ms_p99": 201.8533869959353,
+   "escalated": 0.0005
   },
   "relay1 -> strong": {
-   "failures_X": 4,
+   "failures_X": 2,
    "failures_Z": 2,
-   "failures_pair": 6,
-   "ler": 0.00012508601994698498,
-   "ms_mean": 9.658107034978457,
-   "ms_p99": 85.41899051142518,
+   "failures_pair": 4,
+   "ler": 8.337155219761971e-05,
+   "ms_mean": 19.41266785730113,
+   "ms_p99": 194.649863179655,
    "escalated": 0.0
   },
   "relay1 -> strong (perfect router)": {
-   "failures_X": 2,
+   "failures_X": 1,
    "failures_Z": 0,
-   "failures_pair": 2,
-   "ler": 4.167621832917856e-05,
-   "ms_mean": 13.914422732978892,
-   "ms_p99": 86.90854508877133,
-   "escalated": 0.00075
+   "failures_pair": 1,
+   "ler": 2.083572086741814e-05,
+   "ms_mean": 21.64526808680148,
+   "ms_p99": 201.8533869959353,
+   "escalated": 0.0005
   }
  },
  "hidden_failures": {
@@ -414,12 +414,12 @@
    "shots": 8000
   },
   "fast": {
-   "converged_but_wrong": 1,
-   "converged": 7982,
+   "converged_but_wrong": 2,
+   "converged": 7974,
    "shots": 8000
   },
   "relay1": {
-   "converged_but_wrong": 6,
+   "converged_but_wrong": 4,
    "converged": 8000,
    "shots": 8000
   }

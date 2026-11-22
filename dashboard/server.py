@@ -49,24 +49,40 @@ _cache, _lock = {}, threading.Lock()
 
 
 def model_for(f):
-    """The routed decoder's risk model: the loss model under erasure, if it exists."""
-    name = "aegis_router_loss.joblib" if f and (MODELS / "aegis_router_loss.joblib").exists() else "aegis_router.joblib"
-    if name not in _cache:
-        _cache[name] = load_model(MODELS / name)
-    return _cache[name]
+    """The routed decoder's risk model, or None when it has not been trained yet.
+
+    Under erasure only a model trained on erasure data is used: the sweep model never saw herald
+    flags, so its loss features would be out of range. A model file that is replaced (for example
+    by `make train`) is reloaded on the next request.
+    """
+    path = MODELS / ("aegis_router_loss.joblib" if f else "aegis_router.joblib")
+    if not path.exists():
+        return None
+    stamp = path.stat().st_mtime
+    cached = _cache.get(path.name)
+    if cached is None or cached[0] != stamp:
+        try:
+            _cache[path.name] = (stamp, load_model(path))
+        except Exception:          # a file being written right now; keep what we had
+            return cached[1] if cached else None
+    return _cache[path.name][1]
 
 
 def setup(basis, p, f):
-    """Problem and decoders of one setting, built once and kept."""
+    """Problem and decoders of one setting, built once and kept. QEC-Aegis follows the model file."""
     key = (basis, p, f)
     if key not in _cache:
         problem = Problem(basis, p, f)
-        model = model_for(f)
         flags = "+flags" if f else ""
-        _cache[key] = {"problem": problem, "model": model,
-                       "aegis": AegisDecoder(problem, model, use_flags=bool(f)),
+        _cache[key] = {"problem": problem, "model": None, "aegis": None,
                        "relay": build("relay" + flags, problem), "bposd": build("bposd" + flags, problem)}
-    return _cache[key]
+    s = _cache[key]
+    model = model_for(f)
+    if model is None:
+        s["model"] = s["aegis"] = None
+    elif s["model"] is not model:
+        s["model"], s["aegis"] = model, AegisDecoder(s["problem"], model, use_flags=bool(f))
+    return s
 
 
 def decode_live(basis, p, f, seed, baselines):
@@ -86,10 +102,22 @@ def decode_live(basis, p, f, seed, baselines):
                     "bp_iterations": int(result.iterations), "predicted_observables": predicted.tolist()}
 
         for name in ("aegis", "relay", "bposd"):
-            s[name].reset()      # the same seed then gives the same answers, whatever was decoded before
-        start = time.perf_counter()
-        result = s["aegis"].decode_shot(syndrome, int(other[0].sum()), fired[0])
-        decoders = {"QEC-Aegis": outcome(result, time.perf_counter() - start)}
+            if s[name] is not None:
+                s[name].reset()      # the same seed then gives the same answers, whatever was decoded before
+        decoders, routing, shot_features = {}, None, None
+        if s["aegis"] is not None:
+            start = time.perf_counter()
+            result = s["aegis"].decode_shot(syndrome, int(other[0].sum()), fired[0])
+            decoders["QEC-Aegis"] = outcome(result, time.perf_counter() - start)
+            converged = bool(result.features[0])
+            routing = {"risk": result.risk, "threshold": model.meta["threshold"], "escalated": bool(result.escalated),
+                       "tier1": model.meta["tier1"], "tier2": model.meta["tier2"], "tier1_converged": converged,
+                       "path": ("tier 1 -> tier 2 (tier 1 did not converge)" if result.escalated and not converged
+                                else "tier 1 -> tier 2 (risk above threshold)" if result.escalated else "tier 1 accepted"),
+                       "ms_tier1": result.seconds_tier1 * 1e3, "ms_model": result.seconds_model * 1e3,
+                       "ms_tier2": result.seconds_tier2 * 1e3, "model": model.meta.get("name", model.kind),
+                       "trained_on": model.meta.get("trained_on")}
+            shot_features = dict(zip(features.NAMES, (float(v) for v in result.features)))
         for name, label in (("relay", "relay-BP"), ("bposd", "BP-OSD")):
             if name in baselines:
                 start = time.perf_counter()
@@ -104,28 +132,35 @@ def decode_live(basis, p, f, seed, baselines):
             "source": "live", "basis": basis, "p": p, "f": f, "seed": int(seed),
             "syndrome": syndrome.reshape(problem.rounds, problem.checks).tolist(),
             "true_observables": truth.tolist(), "heralds": int(len(fired[0])), "herald_rounds": herald_rounds.tolist(),
-            "decoders": decoders,
-            "routing": {"risk": result.risk, "threshold": model.meta["threshold"], "escalated": bool(result.escalated),
-                        "tier1": model.meta["tier1"], "tier2": model.meta["tier2"], "tier1_converged": bool(result.features[0]),
-                        "path": ("tier 1 -> tier 2 (tier 1 did not converge)" if result.escalated and not result.features[0]
-                                 else "tier 1 -> tier 2 (risk above threshold)" if result.escalated else "tier 1 accepted"),
-                        "ms_tier1": result.seconds_tier1 * 1e3, "ms_model": result.seconds_model * 1e3,
-                        "ms_tier2": result.seconds_tier2 * 1e3, "model": model.meta.get("name", model.kind)},
-            "features": dict(zip(features.NAMES, (float(v) for v in result.features))),
-            "feature_groups": features.GROUPS,
+            "decoders": decoders, "routing": routing, "features": shot_features, "feature_groups": features.GROUPS,
+            "aegis_available": routing is not None,
         }
 
 
+def stored_studies():
+    """Decoder studies on validation shots (aegis.study, aegis.predecoder), oldest setting first."""
+    studies = []
+    for path in sorted(REPORTS.glob("complementarity_p*.json")):
+        report = json.loads(path.read_text())
+        report["written"] = time.strftime("%Y-%m-%d %H:%M", time.localtime(path.stat().st_mtime))
+        studies.append(report)
+    path = REPORTS / "predecoder_p0.004.json"
+    predecoder = json.loads(path.read_text()) if path.exists() else None
+    return studies, predecoder
+
+
 def stored_results():
-    """The measured evaluation, as written by aegis.evaluate. None when it has not been run."""
+    """The measured evaluation, as written by aegis.evaluate, and the validation studies."""
+    studies, predecoder = stored_studies()
     path = REPORTS / "evaluation.json"
     if not path.exists():
-        return {"source": "stored", "available": False}
+        return {"source": "stored", "available": False, "studies": studies, "predecoder": predecoder}
     report = json.loads(path.read_text())
     slim = {key: {setting: {k: v for k, v in result.items() if k != "frontier"} for setting, result in report.get(key, {}).items()}
             for key in ("sweep", "timing", "loss")}
     return {"source": "stored", "available": True, "written": time.strftime("%Y-%m-%d %H:%M", time.localtime(path.stat().st_mtime)),
-            "model": report["model"], **slim, "figures": sorted(f.name for f in FIGURES.glob("*.png")) if FIGURES.exists() else []}
+            "model": report["model"], **slim, "studies": studies, "predecoder": predecoder,
+            "figures": sorted(f.name for f in FIGURES.glob("*.png")) if FIGURES.exists() else []}
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -143,9 +178,10 @@ class Handler(BaseHTTPRequestHandler):
         if path == "/":
             self.send(PAGE.read_bytes(), "text/html; charset=utf-8")
         elif path == "/api/status":
-            model = model_for(0.0)
+            model, loss_model = model_for(0.0), model_for(0.5)
+            meta = lambda m: None if m is None else {k: v for k, v in m.meta.items() if k != "feature_names"} | {"kind": m.kind}
             self.send({"source": "live", "offline": True, "allowed_p": ALLOWED_P, "allowed_f": ALLOWED_F,
-                       "model": {k: v for k, v in model.meta.items() if k != "feature_names"}, "kind": model.kind})
+                       "model": meta(model), "loss_model": meta(loss_model)})
         elif path == "/api/results":
             self.send(stored_results())
         elif path == "/api/reference":

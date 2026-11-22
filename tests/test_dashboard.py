@@ -24,6 +24,7 @@ def url(tmp_path_factory):
                       meta={"name": "stand-in", "tier1": "fast", "tier2": "relay", "threshold": 0.01,
                             "feature_names": features.NAMES})
     joblib.dump(model, models / "aegis_router.joblib")
+    joblib.dump(model, models / "aegis_router_loss.joblib")
     server.MODELS, server.REPORTS = models, models          # no stored evaluation in this directory
     server._cache.clear()
     httpd = server.serve(port=0)
@@ -74,7 +75,16 @@ def test_status_and_reference(url):
 
 def test_results_say_when_nothing_is_stored(url):
     results = json.loads(get(url + "/api/results")[1])
-    assert results == {"source": "stored", "available": False}
+    assert results == {"source": "stored", "available": False, "studies": [], "predecoder": None}
+
+
+def test_without_a_model_only_the_baselines_run(url, tmp_path, monkeypatch):
+    monkeypatch.setattr(server, "MODELS", tmp_path)       # no model file here
+    status = json.loads(get(url + "/api/status")[1])
+    assert status["model"] is None and status["loss_model"] is None
+    code, shot = post(url + "/api/decode", {"basis": "Z", "p": 0.003, "seed": 1, "baselines": ["relay"]})
+    assert code == 200 and set(shot["decoders"]) == {"relay-BP"}
+    assert shot["routing"] is None and shot["features"] is None and shot["aegis_available"] is False
 
 
 def test_live_decode(url):

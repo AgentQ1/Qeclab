@@ -44,22 +44,22 @@
    "unconverged": 0.0015
   },
   "relay1": {
-   "failures_X": 25,
+   "failures_X": 17,
    "failures_Z": 17,
-   "failures_pair": 41,
-   "ler": 0.0011460856790802554,
-   "ms_mean": 85.8917937133483,
-   "ms_p99": 1602.1209646698119,
-   "unconverged": 0.0023333333333333335
+   "failures_pair": 33,
+   "ler": 0.0009213209362890495,
+   "ms_mean": 103.07343005041669,
+   "ms_p99": 1794.3780804973303,
+   "unconverged": 0.0016666666666666668
   },
   "fast": {
-   "failures_X": 94,
-   "failures_Z": 102,
-   "failures_pair": 191,
-   "ler": 0.005466979755253343,
-   "ms_mean": 36.67638556759509,
-   "ms_p99": 233.4899951544498,
-   "unconverged": 0.03266666666666666
+   "failures_X": 96,
+   "failures_Z": 89,
+   "failures_pair": 180,
+   "ler": 0.005143012831822946,
+   "ms_mean": 47.93063403438767,
+   "ms_p99": 308.21975866390846,
+   "unconverged": 0.029833333333333337
   },
   "fast0": {
    "failures_X": 354,
@@ -289,112 +289,112 @@
    "escalated": 0.137
   },
   "fast -> relay": {
-   "failures_X": 15,
-   "failures_Z": 14,
-   "failures_pair": 29,
-   "ler": 0.0008091468129923785,
-   "ms_mean": 153.52472688325966,
-   "ms_p99": 4821.36990983012,
-   "escalated": 0.03266666666666666
+   "failures_X": 13,
+   "failures_Z": 15,
+   "failures_pair": 28,
+   "ler": 0.0007811249140216026,
+   "ms_mean": 160.6776624060488,
+   "ms_p99": 4531.003467490582,
+   "escalated": 0.029833333333333337
   },
   "fast -> relay (perfect router)": {
-   "failures_X": 12,
-   "failures_Z": 7,
+   "failures_X": 11,
+   "failures_Z": 8,
    "failures_pair": 19,
    "ler": 0.0005293160271662156,
-   "ms_mean": 156.5256374389258,
-   "ms_p99": 4821.36990983012,
-   "escalated": 0.034666666666666665
+   "ms_mean": 163.27382368404747,
+   "ms_p99": 4531.003467490582,
+   "escalated": 0.03183333333333333
   },
   "fast -> strong10": {
-   "failures_X": 12,
-   "failures_Z": 11,
+   "failures_X": 10,
+   "failures_Z": 13,
    "failures_pair": 23,
    "ler": 0.0006411449315675277,
-   "ms_mean": 238.25440485895524,
-   "ms_p99": 6317.000686477268,
-   "escalated": 0.03266666666666666
+   "ms_mean": 237.53755602005913,
+   "ms_p99": 6239.027084330181,
+   "escalated": 0.029833333333333337
   },
   "fast -> strong10 (perfect router)": {
    "failures_X": 8,
-   "failures_Z": 5,
-   "failures_pair": 13,
-   "ler": 0.00036183030979686226,
-   "ms_mean": 243.0833357476222,
-   "ms_p99": 6317.000686477268,
-   "escalated": 0.034666666666666665
+   "failures_Z": 6,
+   "failures_pair": 14,
+   "ler": 0.00038972316744889657,
+   "ms_mean": 242.60600042306032,
+   "ms_p99": 6239.027084330181,
+   "escalated": 0.03183333333333333
   },
   "fast -> strong": {
-   "failures_X": 10,
-   "failures_Z": 12,
+   "failures_X": 8,
+   "failures_Z": 14,
    "failures_pair": 22,
    "ler": 0.0006131747986409808,
-   "ms_mean": 366.87372348260516,
-   "ms_p99": 10986.029720484978,
-   "escalated": 0.03266666666666666
+   "ms_mean": 358.5785379080626,
+   "ms_p99": 11013.989494750893,
+   "escalated": 0.029833333333333337
   },
   "fast -> strong (perfect router)": {
    "failures_X": 6,
-   "failures_Z": 6,
-   "failures_pair": 12,
-   "ler": 0.0003339460107422143,
-   "ms_mean": 377.7877274272736,
-   "ms_p99": 11012.993454517307,
-   "escalated": 0.034666666666666665
-  },
-  "relay1 -> relay": {
-   "failures_X": 20,
-   "failures_Z": 16,
-   "failures_pair": 35,
-   "ler": 0.0009774599926571925,
-   "ms_mean": 109.24411344968152,
-   "ms_p99": 1602.1209646698119,
-   "escalated": 0.0023333333333333335
-  },
-  "relay1 -> relay (perfect router)": {
-   "failures_X": 10,
-   "failures_Z": 8,
-   "failures_pair": 18,
-   "ler": 0.0005013802940021517,
-   "ms_mean": 127.25579344967869,
-   "ms_p99": 2637.6498050801697,
-   "escalated": 0.007
-  },
-  "relay1 -> strong10": {
-   "failures_X": 18,
-   "failures_Z": 15,
-   "failures_pair": 32,
-   "ler": 0.0008932644151794511,
-   "ms_mean": 125.72664790768248,
-   "ms_p99": 1602.1209646698119,
-   "escalated": 0.0023333333333333335
-  },
-  "relay1 -> strong10 (perfect router)": {
-   "failures_X": 7,
-   "failures_Z": 5,
-   "failures_pair": 12,
-   "ler": 0.0003339460107422143,
-   "ms_mean": 160.54583803301284,
-   "ms_p99": 3021.3521053278187,
-   "escalated": 0.007
-  },
-  "relay1 -> strong": {
-   "failures_X": 18,
-   "failures_Z": 15,
-   "failures_pair": 32,
-   "ler": 0.0008932644151794511,
-   "ms_mean": 130.26434649068443,
-   "ms_p99": 1602.1209646698119,
-   "escalated": 0.0023333333333333335
-  },
-  "relay1 -> strong (perfect router)": {
-   "failures_X": 7,
-   "failures_Z": 6,
+   "failures_Z": 7,
    "failures_pair": 13,
    "ler": 0.00036183030979686226,
-   "ms_mean": 178.63693110268164,
-   "ms_p99": 3668.1995175018146,
-   "escalated": 0.007
+   "ms_mean": 366.88492646473,
+   "ms_p99": 11013.989494750893,
+   "escalated": 0.03183333333333333
+  },
+  "relay1 -> relay": {
+   "failures_X": 15,
+   "failures_Z": 15,
+   "failures_pair": 30,
+   "ler": 0.0008371773591205889,
+   "ms_mean": 120.15714192541782,
+   "ms_p99": 1794.3780804973303,
+   "escalated": 0.0016666666666666668
+  },
+  "relay1 -> relay (perfect router)": {
+   "failures_X": 5,
+   "failures_Z": 6,
+   "failures_pair": 11,
+   "ler": 0.00030607026479589905,
+   "ms_mean": 134.28877513475285,
+   "ms_p99": 2489.1846721597353,
+   "escalated": 0.005666666666666667
+  },
+  "relay1 -> strong10": {
+   "failures_X": 15,
+   "failures_Z": 15,
+   "failures_pair": 29,
+   "ler": 0.0008091468129923785,
+   "ms_mean": 127.93826768908426,
+   "ms_p99": 1794.3780804973303,
+   "escalated": 0.0016666666666666668
+  },
+  "relay1 -> strong10 (perfect router)": {
+   "failures_X": 5,
+   "failures_Z": 6,
+   "failures_pair": 11,
+   "ler": 0.00030607026479589905,
+   "ms_mean": 152.66068186974977,
+   "ms_p99": 3284.343943266609,
+   "escalated": 0.005666666666666667
+  },
+  "relay1 -> strong": {
+   "failures_X": 15,
+   "failures_Z": 14,
+   "failures_pair": 28,
+   "ler": 0.0007811249140216026,
+   "ms_mean": 132.3153054807517,
+   "ms_p99": 1794.3780804973303,
+   "escalated": 0.0016666666666666668
+  },
+  "relay1 -> strong (perfect router)": {
+   "failures_X": 4,
+   "failures_Z": 5,
+   "failures_pair": 9,
+   "ler": 0.0002503444102988084,
+   "ms_mean": 173.43526462041942,
+   "ms_p99": 3675.340899080434,
+   "escalated": 0.005666666666666667
   }
  },
  "hidden_failures": {
@@ -415,12 +415,12 @@
   },
   "fast": {
    "converged_but_wrong": 12,
-   "converged": 5804,
+   "converged": 5821,
    "shots": 6000
   },
   "relay1": {
-   "converged_but_wrong": 28,
-   "converged": 5986,
+   "converged_but_wrong": 24,
+   "converged": 5990,
    "shots": 6000
   }
  }

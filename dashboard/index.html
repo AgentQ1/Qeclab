@@ -65,6 +65,7 @@
     <button id="run">Sample and decode</button> <button id="next" style="background:transparent;color:var(--accent)">Next seed</button>
     <span id="status" class="muted" style="margin-left:10px"></span>
     <p class="note">Stim samples one shot of the 12-cycle memory circuit (288 qubits) on this machine and the decoders run on it now. Times are single measurements on this machine and vary from click to click; the first run of a setting also builds the decoders.</p>
+    <p class="note" id="modelNote"></p>
   </section>
 
   <section class="twothird">
@@ -120,6 +121,11 @@ const css = name => getComputedStyle(document.documentElement).getPropertyValue(
 
 async function init() {
   const status = await (await fetch("/api/status")).json();
+  const m = status.model;
+  $("modelNote").innerHTML = m
+    ? `QEC-Aegis model: <b>${m.name}</b>, tiers ${m.tier1} → ${m.tier2}, threshold ${Number(m.threshold).toExponential(2)}, trained on ${(m.trained_on || []).map(s => "p = " + s[0]).join(", ")}.` +
+      (status.loss_model ? " An erasure-trained model is available for f > 0." : " No erasure-trained model yet: with f > 0 only the baselines run.")
+    : `<span style="color:var(--warn)">The QEC-Aegis risk model has not been trained yet (<code>make train</code>). Only the baselines run for now; the page picks the model up when it is written.</span>`;
   $("p").innerHTML = status.allowed_p.map(p => `<option ${p === 0.004 ? "selected" : ""}>${p}</option>`).join("");
   $("f").innerHTML = status.allowed_f.map(f => `<option>${f}</option>`).join("");
   const ref = await (await fetch("/api/reference")).json();
@@ -127,8 +133,36 @@ async function init() {
   showResults(await (await fetch("/api/results")).json());
 }
 
+function showStudies(r) {
+  let out = "";
+  for (const s of r.studies || []) {
+    out += `<h3>Decoder study, p = ${s.p}: ${s.pairs.toLocaleString("en-US")} validation shot pairs (seed 3), written ${s.written}</h3>
+      <table><thead><tr><th>BP-OSD vs relay-BP, per shot</th><th>Shots</th><th>BP-OSD mean</th><th>relay-BP mean</th></tr></thead><tbody>` +
+      Object.entries(s.paired_outcomes_bposd_relay).map(([label, c]) => `<tr><td>${label}</td><td>${c.shots}</td><td>${ms(c.bposd_ms)}</td><td>${ms(c.relay_ms)}</td></tr>`).join("") +
+      `</tbody></table>`;
+    const pick = {...Object.fromEntries(["bposd", "relay", "fast", "relay1", "strong10", "bp200"].filter(k => s.tiers[k]).map(k => [k, s.tiers[k]])),
+      "BP-OSD / relay-BP, keep lighter answer": s.bposd_relay_routing.lighter_answer,
+      "BP-OSD / relay-BP, perfect router": s.bposd_relay_routing.oracle,
+      ...Object.fromEntries(Object.entries(s.rule_based).filter(([k]) => /^(fast|relay1|bp200) -> (relay|strong10)/.test(k)))};
+    out += `<table style="margin-top:8px"><thead><tr><th>Decoder or rule</th><th>Failures X, Z</th><th>Pair failures</th><th>LER per cycle</th><th>Mean</th><th>p99</th><th>Tier 2 used</th></tr></thead><tbody>` +
+      Object.entries(pick).map(([name, d]) => `<tr><td>${name}</td><td>${d.failures_X}, ${d.failures_Z}</td><td>${d.failures_pair}</td><td>${sci(d.ler)}</td><td>${ms(d.ms_mean)}</td><td>${ms(d.ms_p99)}</td><td>${d.escalated == null ? "" : fmt(100 * d.escalated) + "%"}</td></tr>`).join("") +
+      `</tbody></table><p class="note">"Perfect router" rows escalate exactly the shots whose tier-1 answer is wrong: an upper bound on what any router can reach with that pair of tiers. Times from 8 parallel workers.</p>`;
+  }
+  const p = r.predecoder;
+  if (p) {
+    const names = {"tier 1": "tier 1 alone", "soft": "learned priors, then tier 1", "hard": "commit confident mechanisms, tier 1 on the residual"};
+    out += `<h3>Learned predecoder, rejected: ${p.shots.toLocaleString("en-US")} validation shots, X basis, p = ${p.p}</h3>
+      <table><thead><tr><th>Variant</th><th>Failures</th><th>Not converged</th><th>Mean</th></tr></thead><tbody>` +
+      Object.entries(p.results).map(([k, v]) => `<tr><td>${names[k]}</td><td>${v.failed}</td><td>${v.unconverged}</td><td>${ms(v.ms_mean)}</td></tr>`).join("") + `</tbody></table>`;
+  }
+  return out;
+}
+
 function showResults(r) {
-  if (!r.available) { $("results").innerHTML = '<span class="muted">No stored evaluation yet. Run <code>make benchmark</code>.</span>'; return; }
+  if (!r.available) {
+    $("results").innerHTML = '<p class="note">No test-set evaluation yet: the frozen test shots are decoded after training (<code>make benchmark</code>). Shown below: the decoder study on validation shots.</p>' + showStudies(r);
+    return;
+  }
   let html = `<p class="note">Written ${r.written} by <code>aegis.evaluate</code>. Model: ${r.model.name}, threshold ${Number(r.model.threshold).toExponential(2)}, tiers ${r.model.tier1} → ${r.model.tier2}. A shot pair fails when the X or the Z memory shot fails; intervals are 95%.</p>`;
   const block = (title, settings, note) => {
     let out = `<h3>${title}</h3><table><thead><tr><th>Setting</th><th>Decoder</th><th>Pairs</th><th>Failures X, Z</th><th>LER per cycle</th><th>95% interval</th><th>Mean</th><th>Median</th><th>p99</th><th>Escalated</th></tr></thead><tbody>`;
@@ -139,7 +173,7 @@ function showResults(r) {
   if (Object.keys(r.timing || {}).length) html += block("Latency benchmark (one worker, nothing else running)", Object.fromEntries(Object.entries(r.timing).map(([p, v]) => ["p = " + p, v])), "Times per shot pair (X + Z). This run is for latency; its shot count is too small for the error rates, which come from the table below.");
   if (Object.keys(r.sweep || {}).length) html += block("Required sweep (frozen test shots, seed 2)", Object.fromEntries(Object.entries(r.sweep).map(([p, v]) => ["p = " + p, v])), "Decoded with parallel workers, so absolute times here are inflated by contention; use them for ratios between decoders on the same shots.");
   if (Object.keys(r.loss || {}).length) html += block("Heralded erasure at p = 0.004", Object.fromEntries(Object.entries(r.loss).map(([f, v]) => ["f = " + f, v])), "Simplified heralded-erasure model, not a full neutral-atom loss model. Total noise rises slightly with f (see docs/LIMITATIONS.md).");
-  $("results").innerHTML = html;
+  $("results").innerHTML = html + showStudies(r);
   $("figures").innerHTML = (r.figures || []).map(f => `<img src="/figures/${f}" alt="${f}">`).join("");
 }
 
@@ -166,6 +200,11 @@ function showShot(d) {
   $("decoders").tBodies[0].innerHTML = Object.entries(d.decoders).map(([name, o]) =>
     `<tr><td>${name}</td><td class="${o.logical_correct ? "ok" : "bad"}">${o.logical_correct ? "correct" : "logical error"}${o.explains_syndrome ? "" : " (did not converge)"}</td><td>${ms(o.ms)}</td><td>${o.bp_iterations}</td></tr>`).join("");
   const r = d.routing;
+  if (!r) {
+    $("path").innerHTML = `<span style="color:var(--warn)">QEC-Aegis did not run on this shot: ${d.f ? "no erasure-trained risk model yet" : "the risk model has not been trained yet"}.</span>`;
+    $("risk").innerHTML = ""; $("features").innerHTML = "";
+    return;
+  }
   $("path").innerHTML = `
     <div class="step on"><b>Tier 1 · ${r.tier1}</b><span>${r.tier1_converged ? "converged" : "did not converge"} · ${ms(r.ms_tier1)}</span></div>→
     <div class="step on"><b>Risk model · ${r.model}</b><span>risk ${Number(r.risk).toExponential(2)} · ${ms(r.ms_model)}</span></div>→
