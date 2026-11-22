@@ -1,0 +1,79 @@
+{
+ "pipeline": "frozen-test evaluation",
+ "started": "2026-11-21 22:11:54",
+ "pid": 58692,
+ "steps": [
+  {
+   "name": "train",
+   "state": "done",
+   "started": "2026-11-21 22:11:54",
+   "load_average_at_start": [
+    2.81,
+    2.52,
+    2.61
+   ],
+   "finished": "2026-11-21 22:14:29",
+   "exit_code": 0
+  },
+  {
+   "name": "test_records",
+   "state": "done",
+   "started": "2026-11-21 22:14:29",
+   "load_average_at_start": [
+    3.69,
+    2.95,
+    2.76
+   ],
+   "finished": "2026-11-21 23:51:46",
+   "exit_code": 0
+  },
+  {
+   "name": "online",
+   "state": "done",
+   "started": "2026-11-21 23:51:46",
+   "load_average_at_start": [
+    9.14,
+    9.28,
+    9.45
+   ],
+   "finished": "2026-11-22 00:04:32",
+   "exit_code": 0
+  },
+  {
+   "name": "evaluate",
+   "state": "done",
+   "started": "2026-11-22 00:04:32",
+   "load_average_at_start": [
+    7.58,
+    8.41,
+    8.93
+   ],
+   "finished": "2026-11-22 00:04:41",
+   "exit_code": 0
+  },
+  {
+   "name": "timing",
+   "state": "running",
+   "started": "2026-11-22 00:04:41",
+   "load_average_at_start": [
+    6.8,
+    8.22,
+    8.86
+   ]
+  },
+  {
+   "name": "evaluate_final",
+   "state": "pending"
+  },
+  {
+   "name": "figures",
+   "state": "pending"
+  },
+  {
+   "name": "report",
+   "state": "pending"
+  }
+ ],
+ "state": "running",
+ "updated": "2026-11-22 00:04:41"
+}
