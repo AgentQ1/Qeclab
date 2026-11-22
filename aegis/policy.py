@@ -15,6 +15,18 @@ from decoders import per_cycle_rate
 from . import CYCLES
 
 
+def oracle_route(first, second):
+    """Per-shot (failed, seconds, escalated) of a router that knows the truth: an UNATTAINABLE bound.
+
+    It escalates exactly the shots tier 1 gets wrong (and the unconverged ones, which any router
+    sees), and keeps whichever answer is correct. No deployable router can do better with these two
+    tiers, at any threshold, in failures or in time."""
+    escalate = first["failed"] | ~first["converged"]
+    failed = first["failed"] & second["failed"]
+    seconds = first["seconds"] + np.where(escalate, second["seconds"], 0.0)
+    return failed, seconds, escalate
+
+
 def route(first, second, escalate, overhead=0.0):
     """Per-shot (failed, seconds, escalated) of routing between two cached tiers."""
     escalate = escalate | ~first["converged"]

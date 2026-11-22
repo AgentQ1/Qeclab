@@ -15,6 +15,6 @@ export const MODULES: ModuleInfo[] = [
     blurb: "Bounded local simulations on the real backends: Gross-code shots, logical error sweeps, simulator cross-checks." },
   { n: 7, slug: "results", title: "Research Results", short: "Results",
     blurb: "Logical error rate per cycle with intervals, decode-time distributions, resources and the p-sweep." },
-  { n: 8, slug: "hardware", title: "Historical IBM Quantum Evidence", short: "IBM hardware",
-    blurb: "The archived ibm_kingston repetition-code run, checksum-verified and re-decoded from disk. Read-only." },
+  { n: 8, slug: "hardware", title: "IBM Quantum: Live Status and Archived Evidence", short: "IBM hardware",
+    blurb: "Read-only check of the IBM account and its QPUs, kept apart from the archived ibm_kingston run (checksum-verified, re-decoded). Execution disabled." },
 ];

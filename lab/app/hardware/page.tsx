@@ -2,17 +2,19 @@ import type { Metadata } from "next";
 import { TeX } from "@/components/TeX";
 import { ModuleHeader, Prose, Section, SixQuestions } from "@/components/Layout";
 import { HardwareRecord } from "./Instruments";
+import { LiveConnection } from "./LiveConnection";
 
-export const metadata: Metadata = { title: "Historical IBM Quantum Evidence" };
+export const metadata: Metadata = { title: "IBM Quantum: Live Status and Archived Evidence" };
 
 export default function Hardware() {
   return (
     <article className="max-w-[1180px]">
-      <ModuleHeader n={8} sources={["hardware"]}>
+      <ModuleHeader n={8} sources={["account", "hardware"]}>
         <p>
-          Everything else in this laboratory is mathematics or simulation. This page is the exception: one job that ran on a real superconducting processor,
-          archived with its raw per-shot measurements, submitted circuits and calibration, and sealed with SHA-256 checksums. It is kept apart from the live
-          simulations on purpose. The page reads the archive; it cannot submit anything.
+          Everything else in this laboratory is mathematics or simulation. This page is the exception, in two separate parts. First, the current state of the
+          IBM Quantum account: whether it authenticates and which real QPUs it can reach, from a read-only check. Second, one job that ran on a real
+          superconducting processor, archived with its raw per-shot measurements, submitted circuits and calibration, and sealed with SHA-256 checksums. The
+          page reads a status snapshot and the archive; it cannot submit anything.
         </p>
       </ModuleHeader>
 
@@ -25,9 +27,19 @@ export default function Hardware() {
         limitations={<>One run of a bit-flip-only code at distance 3. The raw (1/1000) and decoded (0/1000) intervals overlap, so this does not show that decoding helped.</>}
       />
 
-      <Section id="record" kicker="8.1" title="The archived ibm_kingston run"><HardwareRecord /></Section>
+      <Section id="live" kicker="8.1" title="Current IBM Quantum account and devices">
+        <Prose className="mb-4 max-w-[54rem]">
+          <p>
+            Separate from the historical record below. This is the state of the account now: whether it authenticates, which real QPUs it can use, and whether
+            they are online. It is read-only metadata. Hardware execution stays disabled; a working connection does not mean anything new was run.
+          </p>
+        </Prose>
+        <LiveConnection />
+      </Section>
 
-      <Section id="reading" kicker="8.2" title="How to read this evidence">
+      <Section id="record" kicker="8.2" title="Historical evidence: the archived ibm_kingston run"><HardwareRecord /></Section>
+
+      <Section id="reading" kicker="8.3" title="How to read this evidence">
         <Prose className="max-w-[54rem]">
           <p>
             The distance-3 repetition code fits IBM&apos;s heavy-hex lattice as a five-qubit chain with no SWAPs, which makes it a clean first hardware test.

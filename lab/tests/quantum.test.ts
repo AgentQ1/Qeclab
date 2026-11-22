@@ -47,3 +47,38 @@ describe("channels", () => {
     const r = applyChannel("bit-flip", 0.1, [0.6, 0, 0.8]); close(r[0], 0.6); close(r[2], 0.8 * 0.8);
   });
 });
+
+describe("foundations: normalization, Born rule, Pauli algebra, physical channels", () => {
+  const mm = (a: import("@/lib/quantum").Mat, b: import("@/lib/quantum").Mat) =>
+    a.map((row, i) => b[0].map((_, j) => row.reduce((s, _x, k) => {
+      const p = { re: a[i][k].re * b[k][j].re - a[i][k].im * b[k][j].im, im: a[i][k].re * b[k][j].im + a[i][k].im * b[k][j].re };
+      return { re: s.re + p.re, im: s.im + p.im };
+    }, { re: 0, im: 0 })));
+  it("every state from angles and every Bell state is normalized, and gates preserve the norm", () => {
+    for (let t = 0; t <= Math.PI; t += 0.37) for (let p = 0; p < 2 * Math.PI; p += 0.71) {
+      const v = stateFromAngles(t, p);
+      close(v.reduce((s, a) => s + a.re * a.re + a.im * a.im, 0), 1);
+      for (const g of Object.values(GATES)) close(apply(g, v).reduce((s, a) => s + a.re * a.re + a.im * a.im, 0), 1);
+    }
+    for (const v of Object.values(BELL)) close(v.reduce((s, a) => s + a.re * a.re + a.im * a.im, 0), 1);
+  });
+  it("Born rule: P(+1 along an axis) = (1 + r_axis)/2 equals |<+axis|psi>|^2", () => {
+    const t = 0.8, p = 1.9, v = stateFromAngles(t, p);
+    close(probPlus(bloch(v), "Z"), v[0].re ** 2 + v[0].im ** 2);
+    const plus = apply(GATES.H, v);                              // <+|psi> is the |0> amplitude of H|psi>
+    close(probPlus(bloch(v), "X"), plus[0].re ** 2 + plus[0].im ** 2);
+  });
+  it("Paulis square to I, anticommute, and XY = iZ", () => {
+    const { X, Y, Z } = GATES;
+    for (const P of [X, Y, Z]) { const sq = mm(P, P); close(sq[0][0].re, 1); close(sq[1][1].re, 1); close(sq[0][1].re, 0); }
+    const xy = mm(X, Y), yx = mm(Y, X);
+    for (let i = 0; i < 2; i++) for (let j = 0; j < 2; j++) { close(xy[i][j].re + yx[i][j].re, 0); close(xy[i][j].im + yx[i][j].im, 0); }
+    close(xy[0][0].im, 1); close(xy[1][1].im, -1);              // XY = iZ
+  });
+  it("channels never push a state outside the Bloch ball (complete positivity bound)", () => {
+    for (const ch of ["bit-flip", "phase-flip", "depolarizing", "amplitude-damping"] as const)
+      for (const p of [0, 0.1, 0.5, 0.9, 1])
+        for (const r of [[0, 0, 1], [1, 0, 0], [0, -1, 0], [0.6, 0, -0.8]] as [number, number, number][])
+          expect(Math.hypot(...applyChannel(ch, p, r))).toBeLessThanOrEqual(1 + 1e-12);
+  });
+});

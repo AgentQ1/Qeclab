@@ -31,6 +31,8 @@ const DEC: { id: string; color: string; dashed?: boolean; hollow?: boolean }[] =
   { id: "bp200 -> relay (rule)", color: "var(--s6)", dashed: true, hollow: true }, { id: "tier 2 alone", color: "var(--s1)", dashed: true, hollow: true },
   { id: "relay (flags ignored)", color: "var(--s1)", dashed: true }, { id: "bposd (flags ignored)", color: "var(--s3)", dashed: true },
   { id: "relay+flags", color: "var(--s1)" }, { id: "bposd+flags", color: "var(--s3)" },
+  // Uses the truth to route: a bound on what any router with these two tiers could reach, not a decoder.
+  { id: "oracle router (knows the truth; unattainable)", color: "var(--muted)", dashed: true, hollow: true },
 ];
 const colorOf = (name: string) => DEC.find((d) => d.id === name) ?? { id: name, color: "var(--muted)" };
 

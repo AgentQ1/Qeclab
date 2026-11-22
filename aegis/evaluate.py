@@ -14,6 +14,7 @@ Decoders per noise strength:
   heuristic               tier 2 also when one hand-picked feature crosses its threshold
   aegis                   tier 2 also when the learned risk crosses its threshold
   aegis (online)          the same decoder run as one program, when that record exists
+  oracle router           tier 2 exactly when tier 1 is wrong: uses the truth, an unattainable bound
 Times of cached policies are sums of measured per-stage times plus the measured model time.
 """
 import argparse
@@ -26,10 +27,11 @@ from mgccorrection.paths import ROOT
 
 from .collect import MANIFEST, RECORDS, load
 from .model import quality
-from .policy import compare, frontier, pareto, per_cycle, route, summarize
+from .policy import compare, frontier, oracle_route, pareto, per_cycle, route, summarize
 from .train import MODELS, REPORTS, THRESHOLDS
 
 SWEEP = [0.003, 0.004, 0.005]
+ORACLE = "oracle router (knows the truth; unattainable)"
 
 
 def record_pair(split, p, f=0.0):
@@ -93,6 +95,10 @@ def evaluate_setting(x, z, systems, timing=False):
             escalated_fraction=float((parts[0][2].mean() + parts[1][2].mean()) / 2))
     parts = routed(x, z, None, 2.0, tier1, tier2, 0.0)
     add("rule (no ML)", parts[0][0], parts[1][0], parts[0][1], parts[1][1], **diagnostics(x, z, parts, tier1, tier2))
+    if tier1 in x and tier2 in x:
+        parts = [oracle_route(r[tier1], r[tier2]) + (None,) for r in (x, z)]
+        add(ORACLE, parts[0][0], parts[1][0], parts[0][1], parts[1][1], unattainable=True,
+            escalated_fraction=float((parts[0][2].mean() + parts[1][2].mean()) / 2), tiers=f"{tier1} -> {tier2}")
     for name, m in systems.items():
         t1, t2 = m.meta["tier1"], m.meta["tier2"]
         if t1 not in x or t2 not in x:

@@ -175,6 +175,55 @@ test("Module 8: archived hardware run, checksums verified, no submission path", 
   await expect(page.getByTestId("hw-submission")).toContainText("disabled");
 });
 
+test("Module 8: live IBM connection panel shows the server's snapshot, kept apart from the archive", async ({ page }) => {
+  const errors = watch(page);
+  const live = waitApi(page, "/api/sim/ibm-connection");
+  await page.goto("/hardware");
+  const c = await json(await live);
+  expect(c.server_contacts_ibm).toBe(false);
+  expect(c.hardware_execution).toBe("disabled");
+  const body = JSON.stringify(c);
+  expect(body).not.toMatch(/crn:v1|token|api_?key|Bearer/i);
+  const panel = page.getByTestId("ibm-live");
+  await expect(page.getByTestId("ibm-exec")).toContainText("Disabled");
+  const fresh = c.checked_at && c.age_seconds != null && c.age_seconds <= 24 * 3600;
+  const expected = !c.checked_at ? "Unknown" : c.authentication === "connected" ? (fresh ? "Connected" : "Unknown")
+    : c.authentication === "disconnected" ? "Disconnected" : "Unknown";
+  await expect(page.getByTestId("ibm-auth")).toContainText(expected);
+  if (c.backends?.length) {
+    const qpus = c.backends.filter((b: any) => !b.simulator);
+    await expect(page.getByTestId("ibm-qpus")).toContainText(`${qpus.filter((b: any) => b.operational).length} / ${qpus.length}`);
+    for (const b of qpus) {
+      const row = page.getByTestId("ibm-backends").locator("tr", { has: page.getByTestId(`ibm-be-${b.name}`) });
+      await expect(row).toContainText(String(b.qubits));
+      await expect(row).toContainText(b.operational ? "online" : "offline");
+      if (b.pending_jobs != null) await expect(row).toContainText(String(b.pending_jobs));
+    }
+    await expect(page.getByTestId("ibm-instance")).toContainText(c.instance.name);
+  }
+  // The archived run is a separate section, after the live panel.
+  const order = await page.evaluate(() => [document.getElementById("live")?.offsetTop ?? -1, document.getElementById("record")?.offsetTop ?? -1]);
+  expect(order[0]).toBeGreaterThanOrEqual(0);
+  expect(order[0]).toBeLessThan(order[1]);
+  await expect(panel).not.toContainText("dc0kvf2nj2vs73de5qvg");      // the archived job is not shown as live
+  expect(errors).toEqual([]);
+});
+
+test("Module 8: a stale or failed check is never shown as Connected (rendering of mocked snapshots)", async ({ page }) => {
+  const base = { source: "results/live/ibm_connection_status.json", live: false, refresh_command: "x", hardware_execution: "disabled", server_contacts_ibm: false };
+  for (const [snap, label] of [
+    [{ ...base, authentication: "connected", checked_at: "2026-11-01T00:00:00-0600", age_seconds: 30 * 86400, backends: [] }, "Unknown"],
+    [{ ...base, authentication: "disconnected", checked_at: "2026-11-21T00:00:00-0600", age_seconds: 60, reason: "IBM rejected the saved API key" }, "Disconnected"],
+    [{ ...base, authentication: "unknown", checked_at: null, reason: "No connection check has been run" }, "Unknown"],
+  ] as const) {
+    await page.route("**/api/sim/ibm-connection", (route) => route.fulfill({ json: snap }));
+    await page.goto("/hardware");
+    await expect(page.getByTestId("ibm-auth")).toContainText(label);
+    await expect(page.getByTestId("ibm-exec")).toContainText("Disabled");
+    await page.unroute("**/api/sim/ibm-connection");
+  }
+});
+
 test("keyboard navigation reaches the module links and the theme toggle", async ({ page }) => {
   await page.goto("/");
   await page.keyboard.press("Tab");
