@@ -166,3 +166,80 @@ def test_manifest_and_calibration_routes(url):
     assert json.loads(get(url + "/api/manifest")[1])["source"] == "stored"
     assert json.loads(get(url + "/api/calibration")[1])["source"] == "stored"
     assert json.loads(get(url + "/api/training")[1])["source"] == "stored"
+
+
+def _fake_eval_tree(tmp_path, monkeypatch):
+    import lab_api
+    records, reports, checkpoints = tmp_path / "records", tmp_path / "reports", tmp_path / "checkpoints"
+    for d in (records, reports, checkpoints):
+        d.mkdir()
+    monkeypatch.setattr(lab_api, "RECORDS", records)
+    monkeypatch.setattr(lab_api, "CHECKPOINTS", checkpoints)
+    monkeypatch.setattr(lab_api, "EVALUATION", reports / "evaluation.json")
+    monkeypatch.setattr(lab_api, "PIPELINE_STATUS", tmp_path / "pipeline_status.json")
+    monkeypatch.setattr(lab_api, "FIGURES", tmp_path / "figures")
+    monkeypatch.setattr(lab_api, "MODELS", tmp_path)
+    monkeypatch.setattr(lab_api, "_collect_processes", lambda: [])
+    return lab_api, records, reports, checkpoints
+
+
+def test_pipeline_progress_attributes_checkpoints_by_their_tag(tmp_path, monkeypatch):
+    import hashlib
+    lab_api, records, _, checkpoints = _fake_eval_tree(tmp_path, monkeypatch)
+    np.savez(records / "test_X_p0.004.npz", **{f"{t}/failed": np.zeros(2, bool) for t in lab_api.SWEEP_TIERS})
+    tag = hashlib.sha1(json.dumps([sorted(lab_api.SWEEP_TIERS), "None", None]).encode()).hexdigest()[:10]
+    (checkpoints / f"test_Z_p0.004_{tag}").mkdir()
+    for k in range(3):
+        np.savez(checkpoints / f"test_Z_p0.004_{tag}" / f"{k:05d}.npz", a=np.zeros(1))
+    art = {a["label"]: a for a in lab_api.pipeline()["artifacts"]}
+    sweep = art["test records, p = 0.004"]
+    assert sweep["state"] == "partial" and sweep["bases"]["X"]["state"] == "done"
+    assert sweep["bases"]["Z"] == {"state": "partial", "chunks": 3, "of": 200}
+    assert art["QEC-Aegis online, p = 0.004"]["state"] == "pending"      # the sweep's checkpoints are not the online run's
+    assert len(art) == 15 and {a["kind"] for a in art.values()} == {"sweep", "erasure", "online", "timing"}
+
+
+def test_evaluation_states(tmp_path, monkeypatch):
+    lab_api, records, reports, _ = _fake_eval_tree(tmp_path, monkeypatch)
+    assert lab_api.evaluation()["state"] == "pending" and lab_api.evaluation()["final"] is False
+    full = {"model": {}, "sweep": {p: {"decoders": {"aegis (online)": {}}} for p in ("0.003", "0.004", "0.005")},
+            "timing": {p: {} for p in ("0.003", "0.004", "0.005")}, "loss": {f: {} for f in ("0.25", "0.5", "0.75")}, "runs": [1]}
+    partial = json.loads(json.dumps(full)); del partial["timing"]["0.005"]; del partial["loss"]["0.75"]
+    (reports / "evaluation.json").write_text(json.dumps(partial))
+    out = lab_api.evaluation()
+    assert out["state"] == "partial" and not out["final"]
+    assert "single-worker timing missing at p = 0.005" in out["gaps"] and "erasure f = 0.75 missing" in out["gaps"]
+    (reports / "evaluation.json").write_text(json.dumps(full))
+    out = lab_api.evaluation()
+    assert out["state"] == "completed" and out["final"] and "runs" not in out["report"]
+    import os, time as _t
+    np.savez(records / "test_X_p0.003.npz", x=np.zeros(1))
+    os.utime(records / "test_X_p0.003.npz", (_t.time() + 60, _t.time() + 60))
+    assert lab_api.evaluation()["state"] == "partial"                     # a newer record makes the report stale
+    (tmp_path / "pipeline_status.json").write_text(json.dumps({"state": "failed", "steps": []}))
+    assert lab_api.evaluation()["state"] == "failed"
+    (tmp_path / "pipeline_status.json").write_text(json.dumps({"state": "running", "steps": []}))
+    assert lab_api.evaluation()["state"] == "running"
+
+
+def test_methods_come_from_the_code(url):
+    m = json.loads(get(url + "/api/methods")[1])
+    assert "not adopted" in m["docs"]["aegis.predecoder"] and "complement" in m["docs"]["aegis.study"]
+    assert m["feature_groups"] == features.GROUPS
+    for route in ("/api/pipeline", "/api/evaluation"):
+        assert json.loads(get(url + route)[1])["source"] in ("live", "stored")
+
+
+def test_api_only_mode_redirects_the_page_to_the_lab_and_keeps_the_api(url, monkeypatch):
+    monkeypatch.setattr(server, "API_ONLY", True)
+    request = urllib.request.Request(url + "/")
+    class NoRedirect(urllib.request.HTTPRedirectHandler):
+        def redirect_request(self, *a, **k):
+            return None
+    opener = urllib.request.build_opener(NoRedirect)
+    with pytest.raises(urllib.error.HTTPError) as caught:
+        opener.open(request, timeout=10)
+    assert caught.value.code == 302 and caught.value.headers["Location"] == server.LAB_URL
+    assert json.loads(get(url + "/api/status")[1])["source"] == "live"
+    monkeypatch.setattr(server, "API_ONLY", False)
+    assert b"QEC-Aegis" in get(url + "/")[1]                     # the legacy page is kept for rollback

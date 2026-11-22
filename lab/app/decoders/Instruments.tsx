@@ -154,6 +154,8 @@ export function LiveDecode() {
                 <div className="grid grid-cols-2 gap-2">
                   <Stat label="Risk P(tier 1 wrong)" value={shot.routing.risk.toExponential(2)} sub={`threshold ${shot.routing.threshold.toFixed(3)}`} testid="ld-risk" />
                   <Stat label="Route" value={shot.routing.escalated ? "escalated" : "accepted"} sub={shot.routing.path} testid="ld-route" />
+                  <Stat label="Fallback rule" value={shot.routing.tier1_converged ? "not triggered" : "triggered"} sub="tier 1 did not converge → always tier 2" testid="ld-fallback" />
+                  <Stat label="Threshold τ" value={shot.routing.threshold.toPrecision(4)} sub="escalate when risk ≥ τ" testid="ld-threshold" />
                 </div>
                 <RiskBar risk={shot.routing.risk} threshold={shot.routing.threshold} />
                 <p className="font-sans text-[12px] text-muted">
@@ -163,12 +165,20 @@ export function LiveDecode() {
                 </p>
               </div>
               <div>
-                <div className="mb-1 font-sans text-[11.5px] font-medium uppercase tracking-[0.06em] text-muted">Tier-1 quantities exposed by relay-BP (actual values)</div>
-                <table className="w-full font-sans text-[12px]" data-testid="ld-features">
-                  <tbody>{shot.feature_groups.tier1.concat(["syndrome_weight", "second_run", "second_disagrees"]).map((k) => (
-                    <tr key={k} className="border-b border-rule"><td className="num py-0.5 pr-2 text-ink-2">{k}</td><td className="num text-right text-ink">{fmtFeature(shot.features![k])}</td></tr>
-                  ))}</tbody>
-                </table>
+                <div className="mb-1 font-sans text-[11.5px] font-medium uppercase tracking-[0.06em] text-muted">
+                  Every feature the router read ({Object.values(shot.feature_groups).flat().length}, actual values)
+                </div>
+                <div className="grid grid-cols-1 gap-x-5 sm:grid-cols-2" data-testid="ld-features">
+                  {Object.entries(shot.feature_groups).map(([group, names]) => (
+                    <table key={group} className="mb-2 w-full font-sans text-[12px]">
+                      <thead><tr><th colSpan={2} className="pt-1 text-left text-[11px] font-semibold uppercase tracking-[0.06em] text-accent">{group}</th></tr></thead>
+                      <tbody>{names.map((k) => (
+                        <tr key={k} className="border-b border-rule"><td className="num py-0.5 pr-2 text-ink-2">{k}</td>
+                          <td className="num text-right text-ink" data-testid={`feat-${k}`}>{fmtFeature(shot.features![k])}</td></tr>
+                      ))}</tbody>
+                    </table>
+                  ))}
+                </div>
               </div>
             </div>
           )}

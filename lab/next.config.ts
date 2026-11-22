@@ -15,6 +15,7 @@ const config: NextConfig = {
     return [
       { source: "/api/aegis/:path*", destination: `${AEGIS}/api/:path*` },
       { source: "/api/sim/:path*", destination: `${SIM}/api/:path*` },
+      { source: "/aegis-figures/:name", destination: `${AEGIS}/figures/:name` },   // docs/figures/*.png written by aegis.figures
     ];
   },
 };

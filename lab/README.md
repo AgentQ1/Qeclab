@@ -18,25 +18,28 @@ IBM Quantum hardware.
 ## Run
 
 ```bash
-# backends (each in its own terminal)
-.venv/bin/python dashboard/server.py --port 8765 --no-browser                  # in MidQWest-2026
-.venv/bin/python dashboard/serve.py --port 8000 --no-browser                   # in MidQwest
-
-# lab
-cd lab && npm ci && npm run build && npm start                                  # http://127.0.0.1:3100
+make dev            # from MidQWest-2026: starts both API backends (--api-only) and the lab
+                    #   http://127.0.0.1:3100/   (the only user-facing dashboard)
+make dev-stop       # stops what make dev started
+make evaluate-frozen   # the frozen-test pipeline; its progress shows in Module 7
 ```
+
+`make dev` expects the MidQwest checkout at `~/MidQwest` (override with `MIDQWEST_DIR`). With
+`--api-only`, `/` on :8765 and :8000 redirects here. The legacy pages are kept for rollback
+(`make legacy-demo`; MidQwest's `dashboard/serve.py` without the flag). See `MIGRATION.md` for the
+feature-parity matrix.
 
 ## Modules
 
 | # | Route | Source of its numbers |
 |---|---|---|
 | 1 | `/foundations` | exact state-vector and Bloch-vector algebra (`lib/quantum.ts`) |
-| 2 | `/error-correction` | exact parity algebra; `POST /api/sim/simulate/injection` (Aer + PyMatching) |
+| 2 | `/error-correction` | exact parity algebra; `POST /api/sim/simulate/injection` (Aer + PyMatching), `/circuit`, `/compile` |
 | 3 | `/surface-code` | `/api/sim/circuit`, `/simulate/injection`, `/matching-graph`, `/decode-syndrome`, `/reference` |
 | 4 | `/gross-code` | `/api/aegis/gross/structure` (computed from the kit's `make_circuit.py`), `/api/aegis/decode` |
-| 5 | `/decoders` | in-browser BP / OSD-0 / relay illustration (`lib/bp.ts`, labeled); live `/api/aegis/decode` |
+| 5 | `/decoders` | in-browser BP / OSD-0 / relay illustration (`lib/bp.ts`, labeled); live `/api/aegis/decode`; studies from `/results`, `/training`, `/methods` |
 | 6 | `/experiments` | `/api/aegis/decode`, `/api/sim/simulate/rates`, `/api/sim/simulate/compare` |
-| 7 | `/results` | `/api/aegis/records` (per-shot records → `aegis.policy.summarize`), `/training`, `/calibration`, `/manifest`, `/reference` |
+| 7 | `/results` | `/api/aegis/evaluation` + `/pipeline` (frozen-test report and live progress), `/records`, `/training`, `/calibration`, `/manifest`, `/reference`, `/aegis-figures/*` |
 | 8 | `/hardware` | `/api/sim/hardware` (checksums recomputed, archive re-decoded; read-only) |
 
 ## Tests
@@ -44,7 +47,9 @@ cd lab && npm ci && npm run build && npm start                                  
 ```bash
 npx tsc --noEmit        # types
 npx vitest run          # exact-math libraries against known results (Born rule, Bell stabilizers, binomial sums, Wilson = aegis.policy.wilson, GF(2), BP/OSD)
-npx playwright test     # browser E2E on a production build: each test captures the real API response and checks the page shows the same values
+npx playwright test     # browser E2E on a production build (lab.spec, migration.spec, parity.spec)
 ```
 
-The E2E suite needs both backends running and uses the installed Chrome (`channel: "chrome"`).
+`make lab-test` runs all of it. The E2E suites need `make dev` running and use the installed Chrome
+(`channel: "chrome"`). `parity.spec.ts` also starts the two legacy pages on :8766 and :8001 and
+checks that they and the lab show the same values for the same requests.

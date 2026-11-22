@@ -201,3 +201,128 @@ def training():
             "settings": report.get("settings"), "chosen": report.get("chosen"),
             "ranking": {k: {m: v[m] for m in ("shots", "wrong", "auc", "average_precision", "brier", "ece", "inference_us") if m in v}
                         for k, v in report.get("ranking", {}).items()}}
+
+
+# ---------------------------------------------------------------- frozen-test evaluation: plan, progress, result
+CHECKPOINTS = ROOT / "data" / "checkpoints"
+EVALUATION = ROOT / "experiments" / "reports" / "evaluation.json"
+PIPELINE_STATUS = ROOT / "experiments" / "pipeline_status.json"
+FIGURES = ROOT / "docs" / "figures"
+MODELS = ROOT / "models"
+SWEEP_TIERS = ["bposd", "relay", "fast", "relay1", "strong10", "bp200"]          # scripts/run_experiments.sh
+LOSS_TIERS = ["bposd", "relay", "bposd+flags", "relay+flags", "fast+flags", "relay1+flags", "strong10+flags"]
+# (id, label, split, p, f, shots, chunk, tiers): the frozen-test plan of scripts/run_experiments.sh (test)
+# and scripts/run_final.sh (online, timing). Each entry is one record file per basis.
+M, ML = "models/aegis_router.joblib", "models/aegis_router_loss.joblib"   # the --model arguments of run_final.sh
+PLAN = (
+    [("test", "sweep", 0.004, 0.0, 10000, 50, SWEEP_TIERS, None), ("test", "sweep", 0.003, 0.0, 30000, 100, SWEEP_TIERS, None),
+     ("test", "sweep", 0.005, 0.0, 5000, 25, SWEEP_TIERS, None)]
+    + [("test", "erasure", 0.004, f, 5000, 50, LOSS_TIERS, None) for f in (0.5, 0.25, 0.75)]
+    + [("test", "online", p, 0.0, n, c, ["aegis"], M) for p, n, c in ((0.004, 10000, 50), (0.003, 30000, 100), (0.005, 5000, 25))]
+    + [("test", "online", 0.004, f, 5000, 50, ["aegis+flags"], ML) for f in (0.25, 0.5, 0.75)]
+    + [("timing", "timing", p, 0.0, n, c, ["bposd", "relay", "aegis"], M) for p, n, c in ((0.003, 2000, 100), (0.004, 1000, 100), (0.005, 500, 50))]
+)
+
+
+def _record_name(split, basis, p, f):
+    return f"{split}_{basis}_p{p}" + (f"_f{f}" if f else "")
+
+
+def _collect_processes():
+    """Local aegis pipeline processes (pid, command), read with ps. No network."""
+    import subprocess
+    out = subprocess.run(["ps", "-axo", "pid=,command="], capture_output=True, text=True).stdout
+    keep = ("aegis.collect", "aegis.train", "aegis.evaluate", "aegis.figures", "run_frozen_evaluation", "run_experiments.sh", "run_final.sh")
+    return [{"pid": int(line.split(None, 1)[0]), "command": line.split(None, 1)[1][:160]}
+            for line in out.splitlines() if line.strip() and any(k in line for k in keep) and "ps -axo" not in line]
+
+
+def _artifact(split, kind, p, f, shots, chunk, tiers, model):
+    import hashlib
+    total = -(-shots // chunk)
+    # aegis.collect names its checkpoint folder <record>_<sha1(pending tiers, model, threshold)[:10]>.
+    tag = hashlib.sha1(json.dumps([sorted(tiers), str(model), None]).encode()).hexdigest()[:10]
+    bases = {}
+    for basis in "XZ":
+        name = _record_name(split, basis, p, f)
+        path = RECORDS / f"{name}.npz"
+        have = set()
+        if path.exists():
+            try:
+                have = {k.split("/")[0] for k in np.load(path).files if k.endswith("/failed")}
+            except Exception:
+                have = set()
+        if all(t in have for t in tiers):
+            bases[basis] = {"state": "done", "chunks": total, "of": total}
+            continue
+        folder = CHECKPOINTS / f"{name}_{tag}"
+        done = len(list(folder.glob("*.npz"))) if folder.exists() else 0
+        bases[basis] = {"state": "partial" if done else "pending", "chunks": done, "of": total}
+    states = {b["state"] for b in bases.values()}
+    state = "done" if states == {"done"} else "partial" if states & {"done", "partial"} else "pending"
+    label = {"sweep": f"test records, p = {p}", "erasure": f"test records, erasure f = {f}",
+             "online": f"QEC-Aegis online, p = {p}" + (f", f = {f}" if f else ""), "timing": f"single-worker timing, p = {p}"}[kind]
+    return {"kind": kind, "label": label, "split": split, "p": p, "f": f, "shots": shots, "tiers": tiers, "state": state, "bases": bases}
+
+
+def pipeline():
+    """Progress of the frozen-test evaluation: every planned artifact, the runner's status file, live processes."""
+    artifacts = [_artifact(*row) for row in PLAN]
+    runner = json.loads(PIPELINE_STATUS.read_text()) if PIPELINE_STATUS.exists() else None
+    processes = _collect_processes()
+    return {"source": "live", "computed_by": "dashboard/lab_api.py (reads experiments/, data/checkpoints/, ps)",
+            "artifacts": artifacts, "loss_model": (MODELS / "aegis_router_loss.joblib").exists(),
+            "evaluation_written": time.strftime("%Y-%m-%d %H:%M", time.localtime(EVALUATION.stat().st_mtime)) if EVALUATION.exists() else None,
+            "figures": sorted(f.name for f in FIGURES.glob("*.png")) if FIGURES.exists() else [],
+            "runner": runner, "processes": processes,
+            "start_command": "./scripts/run_frozen_evaluation.sh"}
+
+
+def evaluation():
+    """aegis.evaluate's report on the frozen test shots, with an honest state.
+
+    completed  every planned setting (sweep, online, erasure, timing) is in the report, and no test or
+               timing record is newer than the report
+    partial    a report exists but lacks settings or is older than the records: not final
+    running    a pipeline step is running now
+    failed     the runner recorded a failed step
+    pending    nothing has produced a report yet
+    """
+    status = pipeline()
+    runner = status["runner"] or {}
+    report = json.loads(EVALUATION.read_text()) if EVALUATION.exists() else None
+    gaps = []
+    if report:
+        for p in ("0.003", "0.004", "0.005"):
+            if p not in report.get("sweep", {}):
+                gaps.append(f"sweep p = {p} missing")
+            elif "aegis (online)" not in report["sweep"][p].get("decoders", {}):
+                gaps.append(f"online QEC-Aegis run missing at p = {p}")
+            if p not in report.get("timing", {}):
+                gaps.append(f"single-worker timing missing at p = {p}")
+        for f in ("0.25", "0.5", "0.75"):
+            if f not in report.get("loss", {}):
+                gaps.append(f"erasure f = {f} missing")
+        newest = max((path.stat().st_mtime for path in RECORDS.glob("*.npz") if path.name.startswith(("test_", "timing_"))), default=0)
+        if newest > EVALUATION.stat().st_mtime:
+            gaps.append("records changed after the report was written (stale)")
+        report.pop("runs", None)
+    running = runner.get("state") == "running" or bool(status["processes"])
+    state = ("running" if running else "failed" if runner.get("state") == "failed"
+             else "completed" if report and not gaps else "partial" if report else "pending")
+    return {"source": "stored", "origin": "experiments/reports/evaluation.json (aegis.evaluate)", "state": state,
+            "final": state == "completed", "gaps": gaps, "pipeline": status,
+            "written": status["evaluation_written"], "report": report}
+
+
+def methods():
+    """Methodology as written in the code that produced each study (module docstrings)."""
+    import importlib
+    out = {}
+    for name in ("aegis.study", "aegis.predecoder", "aegis.policy", "aegis.features", "aegis.model", "aegis.decoder", "aegis.evaluate", "aegis.tiers"):
+        try:
+            out[name] = (importlib.import_module(name).__doc__ or "").strip()
+        except Exception as error:
+            out[name] = f"(not importable: {type(error).__name__})"
+    from aegis import features
+    return {"source": "stored", "origin": "module docstrings", "docs": out, "feature_groups": features.GROUPS}

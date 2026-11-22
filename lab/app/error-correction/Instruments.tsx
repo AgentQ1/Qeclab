@@ -6,6 +6,7 @@ import { Panel } from "@/components/Layout";
 import { Provenance } from "@/components/Provenance";
 import { TeX } from "@/components/TeX";
 import { SIM, useGet, useRun } from "@/lib/api";
+import { CircuitDiagram, CompileMetrics, type Drawing } from "@/components/Circuit";
 import { matvec, weight } from "@/lib/gf2";
 import { fmtSci, repetitionLeading, repetitionLogical } from "@/lib/stats";
 
@@ -44,7 +45,7 @@ function decodeRepetition(s: number[]) {
   return weight(e0) <= weight(e1) ? e0 : e1;
 }
 
-type CircuitInfo = { layout: { qubits: { id: number; role: string; x: number }[]; detectors: { index: number; qubit: number | null; round: number }[]; data_qubits: number[]; boundaries: { index: number; label: string }[] } };
+type CircuitInfo = { drawing: Drawing; metrics: { qubits: number; depth: number; two_qubit_gates: number; measure: number; reset: number }; layout: { qubits: { id: number; role: string; x: number; row: number }[]; detectors: { index: number; qubit: number | null; round: number }[]; data_qubits: number[]; boundaries: { index: number; label: string }[] } };
 type Injection = {
   run_id: string; seed: number; experiment: string; computed_by: Record<string, string | number>;
   error: { type: string; qubit: number; boundary: number; when: string };
@@ -53,6 +54,8 @@ type Injection = {
   logical: { observable_flipped: boolean; outcome: string; shots: number; errors_before_decoding: number; errors_after_decoding: number };
   stim_reference: { fired: number[]; syndrome_matches_aer: boolean };
   timing_ms: Record<string, number>;
+  circuit: { drawing: Drawing };
+  measurements: { first_shot: string; bits_per_shot: number };
 };
 
 export function SyndromeBench() {
@@ -230,9 +233,21 @@ function SimulatorRun({ d, memory, paulis, predicted }: { d: number; memory: Mem
                   </ul>
                   <div className="font-sans text-[11.5px] text-muted">
                     {String(res.computed_by.simulator)} · {String(res.computed_by.decoder)} · seed {res.seed} · run {res.run_id} · {res.timing_ms.total} ms total
+                    <div className="mt-1">First shot, raw measurement bits (Stim record order): <span className="num text-ink-2" data-testid="sim-raw">{res.measurements.first_shot}</span></div>
                   </div>
                 </div>
               )}
+            </div>
+          )}
+          {lay && circ.data && (
+            <div className="mt-6 space-y-5">
+              <div>
+                <div className="mb-1.5 font-sans text-[11.5px] font-medium uppercase tracking-[0.06em] text-muted">
+                  Circuit {res ? `with your ${res.error.type} error placed ${res.error.when}` : "without an error (run it to see the error placed)"}
+                </div>
+                <CircuitDiagram drawing={res ? res.circuit.drawing : circ.data.drawing} qubits={lay.qubits} rounds={rounds} fired={res?.syndrome.fired_detail} />
+              </div>
+              <CompileMetrics code="repetition" basis={basis} distance={d} rounds={rounds} written={circ.data.metrics} />
             </div>
           )}
         </>

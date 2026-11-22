@@ -52,9 +52,14 @@ REFERENCE = [
     {"p": 0.005, "decoder": "relay-BP", "failures": "411, 414", "ler": 6.9e-3, "mean_s": 1.7},
 ]
 _cache, _lock = {}, threading.Lock()
+# --api-only: the research lab (lab/, port 3100) is the user-facing dashboard. The legacy page stays in
+# dashboard/index.html for rollback and is served again when the flag is left out.
+API_ONLY = False
+LAB_URL = os.environ.get("LAB_URL", "http://127.0.0.1:3100/")
 LAB_ROUTES = {"/api/gross/structure": lab_api.gross_structure, "/api/records": lab_api.records_summary,
               "/api/manifest": lab_api.manifest, "/api/calibration": lab_api.calibration,
-              "/api/training": lab_api.training}
+              "/api/training": lab_api.training, "/api/pipeline": lab_api.pipeline,
+              "/api/evaluation": lab_api.evaluation, "/api/methods": lab_api.methods}
 
 
 def model_for(f):
@@ -184,7 +189,12 @@ class Handler(BaseHTTPRequestHandler):
 
     def do_GET(self):
         path = self.path.split("?")[0]
-        if path == "/":
+        if path == "/" and API_ONLY:
+            self.send_response(302)
+            self.send_header("Location", LAB_URL)
+            self.send_header("Content-Length", "0")
+            self.end_headers()
+        elif path == "/":
             self.send(PAGE.read_bytes(), "text/html; charset=utf-8")
         elif path == "/api/status":
             model, loss_model = model_for(0.0), model_for(0.5)
@@ -227,11 +237,14 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--port", type=int, default=8765)
     parser.add_argument("--no-browser", action="store_true")
+    parser.add_argument("--api-only", action="store_true", help="serve the API only; / redirects to the research lab")
     args = parser.parse_args()
+    global API_ONLY
+    API_ONLY = args.api_only
     server = serve(args.port)
     url = f"http://127.0.0.1:{args.port}/"
     print(f"QEC-Aegis dashboard at {url}  (local only; Ctrl-C to stop)")
-    if not args.no_browser:
+    if not args.no_browser and not args.api_only:
         threading.Timer(0.5, webbrowser.open, [url]).start()
     try:
         server.serve_forever()

@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Eq, TeX } from "@/components/TeX";
 import { ModuleHeader, Note, Prose, Section, SixQuestions } from "@/components/Layout";
 import { BPIllustration, LiveDecode, RouterCard } from "./Instruments";
+import { ArchitectureRationale, PairedOutcomes, PredecoderStudy, RouterSelection, RoutingRules } from "./Research";
 
 export const metadata: Metadata = { title: "Decoder Mathematics" };
 
@@ -100,6 +101,21 @@ export default function Decoders() {
           What is real here: every row of the table and every risk value comes from the Python backend decoding a fresh Stim sample with the production
           libraries (ldpc 2.4.1, relay-bp 0.2.2). One shot shows the mechanism, not performance. Failure rates need thousands of shots and are in Module 7.
         </Note>
+      </Section>
+
+      <Section id="evidence" kicker="5.4" title="The evidence behind the architecture">
+        <Prose className="mb-6 max-w-[54rem]">
+          <p>
+            The design was settled by measurement on validation shots (seed 3), never on the frozen test shots. The studies below are read from the reports
+            that <span className="num">aegis.study</span>, <span className="num">aegis.train</span> and <span className="num">aegis.predecoder</span> wrote. They are the
+            complete decoder-research record that the legacy QEC-Aegis page showed, with each figure&apos;s assumptions and limits stated.
+          </p>
+        </Prose>
+        <PairedOutcomes />
+        <RoutingRules />
+        <RouterSelection />
+        <PredecoderStudy />
+        <ArchitectureRationale />
       </Section>
     </article>
   );

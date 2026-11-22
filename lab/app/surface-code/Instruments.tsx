@@ -6,10 +6,12 @@ import { Panel } from "@/components/Layout";
 import { Provenance } from "@/components/Provenance";
 import { SIM, postJSON, useGet, useRun } from "@/lib/api";
 import { fmtSci } from "@/lib/stats";
+import { CircuitDiagram, CompileMetrics, type Drawing } from "@/components/Circuit";
 
 type Qubit = { id: number; row: number; role: "data" | "ancilla_x" | "ancilla_z"; x: number; y: number };
 type Detector = { index: number; qubit: number | null; round: number };
 type CircuitResp = {
+  drawing: Drawing;
   experiment: string; distance: number; rounds: number; protects_against: string;
   layout: { qubits: Qubit[]; detectors: Detector[]; data_qubits: number[]; boundaries: { index: number; label: string }[]; num_detectors: number; num_measurements: number };
   metrics: { qubits: number; depth: number; two_qubit_gates: number; measure: number; reset: number };
@@ -21,6 +23,8 @@ type Injection = {
   decoder: { predicted_logical_flip: boolean };
   logical: { observable_flipped: boolean; outcome: string; shots: number; errors_before_decoding: number; errors_after_decoding: number };
   stim_reference: { syndrome_matches_aer: boolean }; timing_ms: Record<string, number>;
+  circuit: { drawing: Drawing };
+  measurements: { first_shot: string };
 };
 type Graph = { nodes: (Detector & { coords: number[] })[]; edges: { u: number; v: number | null; weight: number; p: number; flips_observable: boolean }[]; num_detectors: number; weights: string; decoder: string };
 type Match = { pairs: [number, number | null][]; predicted_logical_flip: boolean; weight: number; fired: number[]; ms: number };
@@ -92,9 +96,21 @@ export function SurfaceLab() {
                     <strong>{res.stim_reference.syndrome_matches_aer ? "yes" : "no"}</strong>.
                   </p>
                   <div className="font-sans text-[11.5px] text-muted">{String(res.computed_by.simulator)} · seed {res.seed} · run {res.run_id} · {res.timing_ms.total} ms</div>
+                  <div className="font-sans text-[11.5px] text-muted">First shot, raw bits: <span className="num break-all text-ink-2" data-testid="surf-raw">{res.measurements.first_shot}</span></div>
                 </div>
               ) : <p className="font-sans text-[13px] text-muted">Click a data qubit (or focus one and press Enter) to insert a {pauli} error and run the circuit.</p>}
             </div>
+          </div>
+        )}
+        {lay && circ.data && (
+          <div className="mt-6 space-y-5 border-t border-rule pt-5">
+            <div>
+              <div className="mb-1.5 font-sans text-[11.5px] font-medium uppercase tracking-[0.06em] text-muted">
+                Syndrome-extraction circuit {res ? `with the ${res.error.type} error on qubit ${res.error.qubit}, ${res.error.when}` : "(click a data qubit to place an error)"}
+              </div>
+              <CircuitDiagram drawing={res ? res.circuit.drawing : circ.data.drawing} qubits={lay.qubits} rounds={rounds} fired={res?.syndrome.fired_detail} testid="surf-circuit" />
+            </div>
+            <CompileMetrics code="surface" basis={basis} distance={d} rounds={rounds} written={circ.data.metrics} />
           </div>
         )}
       </Panel>
